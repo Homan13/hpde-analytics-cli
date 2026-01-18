@@ -58,3 +58,11 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
+# PyPI upload
+.pypirc
