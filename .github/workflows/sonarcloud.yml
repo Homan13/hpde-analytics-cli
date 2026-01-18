@@ -31,7 +31,11 @@ jobs:
           pytest tests/ -v --cov=hpde_analytics_cli --cov-report=xml --cov-report=term-missing
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=Homan13_hpde-analytics-cli
+            -Dsonar.organization=homan13
