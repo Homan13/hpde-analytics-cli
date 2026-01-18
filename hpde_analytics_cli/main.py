@@ -9,6 +9,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
@@ -20,7 +21,7 @@ from hpde_analytics_cli.utils.field_discovery import run_field_discovery
 from hpde_analytics_cli.utils.report_generator import generate_report
 
 
-def print_profile(profile: dict) -> None:
+def print_profile(profile: Dict[str, Any]) -> None:
     """Print user profile information in a formatted way."""
     print("\n" + "-" * 40)
     print("User Profile")
@@ -49,7 +50,7 @@ def print_profile(profile: dict) -> None:
     print("-" * 40)
 
 
-def run_authentication(oauth: MSROAuth, verbose: bool = False) -> dict:
+def run_authentication(oauth: MSROAuth, verbose: bool = False) -> Dict[str, Any]:
     """Run the authentication flow and return profile data."""
     profile = oauth.run_auth_flow()
 
@@ -61,7 +62,7 @@ def run_authentication(oauth: MSROAuth, verbose: bool = False) -> dict:
     return profile
 
 
-def fetch_api_data(client, event_id: str = None, verbose: bool = False) -> dict:
+def fetch_api_data(client: Any, event_id: Optional[str] = None, verbose: bool = False) -> Dict[str, Any]:
     """Fetch data from all API endpoints."""
     print("\n" + "=" * 60)
     print("Fetching API Data")

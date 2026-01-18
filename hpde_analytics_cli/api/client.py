@@ -5,7 +5,7 @@ Provides a high-level interface for accessing MotorsportsReg API endpoints.
 """
 
 import time
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from requests_oauthlib import OAuth1Session
 
@@ -15,7 +15,7 @@ from hpde_analytics_cli.auth.oauth import MSROAuth
 class APIError(Exception):
     """Exception raised for API errors."""
 
-    def __init__(self, message: str, status_code: int = None, response_body: str = None):
+    def __init__(self, message: str, status_code: Optional[int] = None, response_body: Optional[str] = None):
         super().__init__(message)
         self.status_code = status_code
         self.response_body = response_body
@@ -24,7 +24,7 @@ class APIError(Exception):
 class MSRClient:
     """Client for interacting with MotorsportsReg API endpoints."""
 
-    def __init__(self, oauth: MSROAuth, organization_id: str = None):
+    def __init__(self, oauth: MSROAuth, organization_id: Optional[str] = None):
         """
         Initialize the API client.
 
@@ -48,10 +48,10 @@ class MSRClient:
         self,
         method: str,
         endpoint: str,
-        params: dict = None,
+        params: Optional[Dict[str, Any]] = None,
         include_org_header: bool = True,
-        retries: int = None,
-    ) -> dict:
+        retries: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """
         Make an authenticated API request.
 
@@ -83,7 +83,7 @@ class MSRClient:
         if include_org_header and self.organization_id:
             headers["X-Organization-Id"] = self.organization_id
 
-        last_error = None
+        last_error: APIError = APIError("Request failed with unknown error")
 
         for attempt in range(retries + 1):
             try:
@@ -92,7 +92,7 @@ class MSRClient:
                 elif method.upper() == "POST":
                     response = session.post(url, data=params, headers=headers)
                 else:
-                    raise ValueError(f"Unsupported HTTP method: {method}")
+                    raise APIError(f"Unsupported HTTP method: {method}")
 
                 # Handle response
                 if response.status_code == 200:
@@ -148,7 +148,7 @@ class MSRClient:
 
         raise last_error
 
-    def get_me(self) -> dict:
+    def get_me(self) -> Dict[str, Any]:
         """
         Get the authenticated user's profile.
 
@@ -157,7 +157,7 @@ class MSRClient:
         """
         return self._request("GET", "/rest/me", include_org_header=False)
 
-    def get_organization_calendar(self, organization_id: str = None) -> dict:
+    def get_organization_calendar(self, organization_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get the organization's event calendar.
 
@@ -175,7 +175,7 @@ class MSRClient:
 
         return self._request("GET", f"/rest/calendars/organization/{org_id}")
 
-    def get_event_entrylist(self, event_id: str) -> dict:
+    def get_event_entrylist(self, event_id: str) -> Dict[str, Any]:
         """
         Get the entry list for an event.
 
@@ -192,7 +192,7 @@ class MSRClient:
 
         return self._request("GET", f"/rest/events/{event_id}/entrylist")
 
-    def get_event_attendees(self, event_id: str) -> dict:
+    def get_event_attendees(self, event_id: str) -> Dict[str, Any]:
         """
         Get complete attendee list for an event.
 
@@ -209,7 +209,7 @@ class MSRClient:
 
         return self._request("GET", f"/rest/events/{event_id}/attendees")
 
-    def get_event_assignments(self, event_id: str) -> dict:
+    def get_event_assignments(self, event_id: str) -> Dict[str, Any]:
         """
         Get event assignments/entries including vehicle information.
 
@@ -226,7 +226,7 @@ class MSRClient:
 
         return self._request("GET", f"/rest/events/{event_id}/assignments")
 
-    def get_timing_feed(self, event_id: str) -> dict:
+    def get_timing_feed(self, event_id: str) -> Dict[str, Any]:
         """
         Get timing and scoring feed for an event.
 
@@ -243,7 +243,7 @@ class MSRClient:
 
         return self._request("GET", f"/rest/events/{event_id}/feeds/timing")
 
-    def get_all_endpoint_data(self, event_id: str = None) -> dict:
+    def get_all_endpoint_data(self, event_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Fetch data from all available endpoints for field discovery.
 
@@ -305,7 +305,7 @@ class MSRClient:
         return results
 
 
-def create_client_from_oauth(oauth: MSROAuth, organization_id: str = None) -> MSRClient:
+def create_client_from_oauth(oauth: MSROAuth, organization_id: Optional[str] = None) -> MSRClient:
     """
     Create an API client from an authenticated OAuth handler.
 

@@ -8,13 +8,13 @@ import csv
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 
 class DataExporter:
     """Exports MSR API data to files for review."""
 
-    def __init__(self, output_dir: str = "output", name: str = None):
+    def __init__(self, output_dir: str = "output", name: Optional[str] = None):
         """
         Initialize the data exporter.
 
@@ -42,7 +42,7 @@ class DataExporter:
         Returns:
             Flattened dictionary
         """
-        items = []
+        items: List[tuple] = []
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict):
@@ -107,7 +107,7 @@ class DataExporter:
         flat_data = [self._flatten_dict(record) for record in data]
 
         # Collect all unique keys
-        all_keys = set()
+        all_keys: Set[str] = set()
         for record in flat_data:
             all_keys.update(record.keys())
         fieldnames = sorted(all_keys)

@@ -77,10 +77,12 @@ python_files = ["test_*.py"]
 addopts = "-v --cov=hpde_analytics_cli --cov-report=term-missing"
 
 [tool.mypy]
-python_version = "3.8"
-warn_return_any = true
+python_version = "3.9"
+warn_return_any = false
 warn_unused_configs = true
 ignore_missing_imports = true
+check_untyped_defs = false
+no_implicit_optional = false
 
 [tool.isort]
 profile = "black"

@@ -14,6 +14,7 @@ import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 from requests_oauthlib import OAuth1Session
@@ -123,9 +124,9 @@ class MSROAuth:
         consumer_key: str,
         consumer_secret: str,
         base_url: str = "https://api.motorsportreg.com",
-        callback_url: str = None,
+        callback_url: Optional[str] = None,
         callback_port: int = DEFAULT_CALLBACK_PORT,
-        token_file: str = None,
+        token_file: Optional[str] = None,
     ):
         """
         Initialize the OAuth handler.
@@ -147,16 +148,17 @@ class MSROAuth:
         # Token storage
         if token_file is None:
             project_root = Path(__file__).parent.parent.parent
-            token_file = project_root / "tokens" / "access_token.json"
-        self.token_file = Path(token_file)
+            self.token_file = project_root / "tokens" / "access_token.json"
+        else:
+            self.token_file = Path(token_file)
 
         # OAuth tokens (populated during auth flow)
         self.request_token = None
         self.request_token_secret = None
         self.access_token = None
         self.access_token_secret = None
-        self.profile_id = None
-        self.organizations = []
+        self.profile_id: Optional[str] = None
+        self.organizations: List[Dict[str, Any]] = []
 
         # Try to load existing tokens
         self._load_tokens()
@@ -207,7 +209,7 @@ class MSROAuth:
         """Check if we have access tokens that might be valid."""
         return bool(self.access_token and self.access_token_secret)
 
-    def get_request_token(self) -> tuple[str, str]:
+    def get_request_token(self) -> Tuple[str, str]:
         """
         Step 1: Obtain a request token from MotorsportsReg.
 
@@ -335,7 +337,7 @@ class MSROAuth:
 
         return session
 
-    def validate_connection(self) -> dict:
+    def validate_connection(self) -> Dict[str, Any]:
         """
         Validate the OAuth connection by calling /rest/me endpoint.
 

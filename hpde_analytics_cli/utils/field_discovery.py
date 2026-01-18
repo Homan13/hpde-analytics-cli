@@ -315,7 +315,7 @@ def save_inventory(inventory: dict, output_path: str) -> None:
 
 def run_field_discovery(
     api_data: Dict[str, Any],
-    output_path: str = None,
+    output_path: Optional[str] = None,
     verbose: bool = False,
 ) -> dict:
     """

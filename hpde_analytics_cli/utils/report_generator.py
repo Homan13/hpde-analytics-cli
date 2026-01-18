@@ -8,7 +8,7 @@ import csv
 import json
 import os
 from datetime import datetime
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 try:
     from openpyxl import Workbook
@@ -45,7 +45,7 @@ class ReportGenerator:
                 rows.append(row)
         return rows
 
-    def _read_json(self, filepath: str) -> Dict:
+    def _read_json(self, filepath: str) -> Any:
         """Read a JSON file."""
         with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -56,7 +56,7 @@ class ReportGenerator:
         last = (row.get("lastName") or "").strip().lower()
         return f"{first}|{last}"
 
-    def _parse_segment(self, segment: str) -> str:
+    def _parse_segment(self, segment: str) -> Optional[str]:
         """Extract the day from segment (Friday/Saturday/Sunday)."""
         if not segment:
             return None
@@ -154,7 +154,7 @@ class ReportGenerator:
         else:
             return "Other"
 
-    def generate_tt_report(self, output_path: str = None) -> str:
+    def generate_tt_report(self, output_path: Optional[str] = None) -> Tuple[str, int]:
         """
         Generate consolidated Time Trials report.
 
@@ -165,7 +165,7 @@ class ReportGenerator:
             output_path: Path for output file (default: same dir as input)
 
         Returns:
-            Path to generated report file
+            Tuple of (path to generated report file, number of drivers)
         """
         if not OPENPYXL_AVAILABLE:
             raise ImportError(
@@ -431,7 +431,7 @@ class ReportGenerator:
         return output_path, len(sorted_drivers)
 
 
-def generate_report(export_dir: str, output_path: str = None, verbose: bool = False) -> str:
+def generate_report(export_dir: str, output_path: Optional[str] = None, verbose: bool = False) -> str:
     """
     Generate Time Trials report from exported data.
 
