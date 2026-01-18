@@ -62,7 +62,9 @@ def run_authentication(oauth: MSROAuth, verbose: bool = False) -> Dict[str, Any]
     return profile
 
 
-def fetch_api_data(client: Any, event_id: Optional[str] = None, verbose: bool = False) -> Dict[str, Any]:
+def fetch_api_data(
+    client: Any, event_id: Optional[str] = None, verbose: bool = False
+) -> Dict[str, Any]:
     """Fetch data from all API endpoints."""
     print("\n" + "=" * 60)
     print("Fetching API Data")

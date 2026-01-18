@@ -15,7 +15,9 @@ from hpde_analytics_cli.auth.oauth import MSROAuth
 class APIError(Exception):
     """Exception raised for API errors."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None, response_body: Optional[str] = None):
+    def __init__(
+        self, message: str, status_code: Optional[int] = None, response_body: Optional[str] = None
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.response_body = response_body

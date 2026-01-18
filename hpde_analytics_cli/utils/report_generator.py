@@ -431,7 +431,9 @@ class ReportGenerator:
         return output_path, len(sorted_drivers)
 
 
-def generate_report(export_dir: str, output_path: Optional[str] = None, verbose: bool = False) -> str:
+def generate_report(
+    export_dir: str, output_path: Optional[str] = None, verbose: bool = False
+) -> str:
     """
     Generate Time Trials report from exported data.
 
