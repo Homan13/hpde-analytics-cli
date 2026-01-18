@@ -9,7 +9,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class FieldInfo:
@@ -68,8 +68,8 @@ class FieldDiscovery:
     EMAIL_PATTERN = r"^[^@]+@[^@]+\.[^@]+$"
 
     def __init__(self):
-        self.fields: dict[str, FieldInfo] = {}
-        self.endpoint_fields: dict[str, list[str]] = {}
+        self.fields: Dict[str, FieldInfo] = {}
+        self.endpoint_fields: Dict[str, List[str]] = {}
 
     def _detect_type(self, value: Any) -> str:
         """
@@ -195,7 +195,7 @@ class FieldDiscovery:
         self._parse_value(data, "", endpoint)
         return len(self.fields) - initial_count
 
-    def analyze_all_responses(self, responses: dict[str, Any]) -> dict[str, int]:
+    def analyze_all_responses(self, responses: Dict[str, Any]) -> Dict[str, int]:
         """
         Analyze multiple API responses.
 
@@ -247,14 +247,14 @@ class FieldDiscovery:
             "all_fields": [self.fields[path].to_dict() for path in sorted(self.fields.keys())],
         }
 
-    def get_fields_by_type(self) -> dict[str, list[str]]:
+    def get_fields_by_type(self) -> Dict[str, List[str]]:
         """
         Group fields by their detected type.
 
         Returns:
             Dict mapping types to lists of field paths
         """
-        by_type: dict[str, list[str]] = {}
+        by_type: Dict[str, List[str]] = {}
         for path, field in self.fields.items():
             if field.field_type not in by_type:
                 by_type[field.field_type] = []
@@ -314,7 +314,7 @@ def save_inventory(inventory: dict, output_path: str) -> None:
 
 
 def run_field_discovery(
-    api_data: dict[str, Any],
+    api_data: Dict[str, Any],
     output_path: str = None,
     verbose: bool = False,
 ) -> dict:
