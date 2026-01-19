@@ -35,8 +35,8 @@ class OAuthCallbackHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
 
-        # Log what we received for debugging
-        print(f"\n  [Callback] Received request: {self.path}")
+        # Log callback received (without sensitive path details)
+        print("\n  [Callback] Received OAuth callback request")
 
         # Ignore non-callback requests (favicon, root path, etc.)
         if not parsed.path.startswith("/callback"):
@@ -55,7 +55,7 @@ class OAuthCallbackHandler(BaseHTTPRequestHandler):
             self.wfile.write(response.encode())
             return
 
-        print(f"  [Callback] OAuth parameters: {params}")
+        print("  [Callback] OAuth parameters received")
 
         # Extract OAuth parameters
         OAuthCallbackHandler.oauth_verifier = params.get("oauth_verifier", [None])[0]
@@ -236,7 +236,7 @@ class MSROAuth:
         if not self.request_token:
             raise Exception("Failed to obtain request token")
 
-        print(f"  Request token obtained: {self.request_token[:20]}...")
+        print("  Request token obtained: [REDACTED]")
         return self.request_token, self.request_token_secret
 
     def get_authorization_url(self) -> str:
@@ -255,8 +255,7 @@ class MSROAuth:
 
         print("\n[Step 2/3] User authorization required")
         print("-" * 60)
-        print("Please visit this URL to authorize the application:")
-        print(f"\n  {auth_url}\n")
+        print("Opening authorization URL in browser...")
         print("-" * 60)
 
         return auth_url
@@ -294,7 +293,7 @@ class MSROAuth:
         if not self.access_token:
             raise Exception("Failed to obtain access token")
 
-        print(f"  Access token obtained: {self.access_token[:20]}...")
+        print("  Access token obtained: [REDACTED]")
         if self.profile_id:
             print(f"  Profile ID: {self.profile_id}")
 
@@ -451,22 +450,18 @@ class MSROAuth:
 
             # Open browser automatically if requested
             if auto_open_browser:
-                print("\n" + "!" * 60)
-                print("IMPORTANT: Copy and paste this URL into your browser:")
-                print(f"\n  {auth_url}\n")
-                print("!" * 60)
                 print("\nAttempting to open browser automatically...")
                 try:
                     webbrowser.open(auth_url)
                 except Exception as e:
                     print(f"  Could not open browser automatically: {e}")
-                print("\nIf the wrong page opens, manually navigate to the URL above.")
+                print("\nIf the browser does not open, check your default browser settings.")
             else:
-                print("\nPlease open the URL above in your browser.")
+                print("\nPlease complete authorization in your browser.")
 
             # Step 3: Wait for callback with verifier
             verifier = self._wait_for_callback(server)
-            print(f"\n  Received verifier: {verifier[:20]}...")
+            print("\n  Received verifier: [REDACTED]")
 
             # Step 4: Exchange for access token
             self.get_access_token(verifier)
