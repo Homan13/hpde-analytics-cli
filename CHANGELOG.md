@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.0.1](https://github.com/Homan13/hpde-analytics-cli/compare/v3.0.0...v3.0.1) (2026-01-26)
+
+
+### Bug Fixes
+
+* Reset version to 2.0.0 and fix Release Please config ([9f92259](https://github.com/Homan13/hpde-analytics-cli/commit/9f922593ca17830c8aa66abadce8f4899d62b7df))
+* Sync pyproject.toml version and fix Release Please config ([0f5eaac](https://github.com/Homan13/hpde-analytics-cli/commit/0f5eaac50829ebf99b7a7d73916220f3aed8e4c2))
+
 ## [3.0.0](https://github.com/Homan13/hpde-analytics-cli/compare/v2.0.1...v3.0.0) (2026-01-26)
 
 
