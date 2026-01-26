@@ -240,7 +240,7 @@ This project uses [Semantic Versioning (SemVer)](https://semver.org/):
 
 ## Authors
 
-* **Kevin Homan** - *Initial work and project lead* - WDCR Time Trials Chief Competition Director
+* **Kevin Homan**
 
 ## License
 
