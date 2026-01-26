@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/Homan13/hpde-analytics-cli/compare/v2.0.0...v2.0.1) (2026-01-26)
+
+
+### Bug Fixes
+
+* Trigger PyPI publish on both created and published releases ([da9fa52](https://github.com/Homan13/hpde-analytics-cli/commit/da9fa52467ea572bd05fd2707fe28258c56e8ac5))
+
 ## [2.0.0](https://github.com/Homan13/hpde-analytics-cli/compare/v1.0.1...v2.0.0) (2026-01-26)
 
 
