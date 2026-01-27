@@ -341,7 +341,7 @@ class MSRClient:
         Returns:
             Dict with data from each endpoint, keyed by endpoint name
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Fetch user profile
         self._fetch_user_profile(results)

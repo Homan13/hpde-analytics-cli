@@ -166,7 +166,9 @@ class ReportGenerator:
             parts.append(driver["model"])
         return " ".join(parts)
 
-    def _write_driver_row(self, ws, row_num: int, driver: Dict, thin_border, center_cols: List[int]) -> None:
+    def _write_driver_row(
+        self, ws, row_num: int, driver: Dict, thin_border, center_cols: List[int]
+    ) -> None:
         """Write a single driver's data row to the worksheet."""
         # Format days and get count
         days_str, day_count = self._format_days_string(driver["days_tt"])
@@ -208,7 +210,7 @@ class ReportGenerator:
 
     def _build_tire_lookup(self) -> Dict[str, str]:
         """Build lookup dictionary for tire brands from assignments JSON."""
-        tire_lookup = {}
+        tire_lookup: Dict[str, str] = {}
         if not os.path.exists(self.assignments_json_file):
             return tire_lookup
 

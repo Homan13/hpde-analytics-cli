@@ -99,7 +99,7 @@ def handle_discover(oauth, args) -> None:
     api_data = fetch_api_data(client, event_id=args.event_id, verbose=args.verbose)
 
     output_path = Path(__file__).parent.parent / args.output
-    run_field_discovery(api_data, output_path=str(output_path), verbose=args.verbose)
+    run_field_discovery(api_data, output_path=str(output_path))
 
 
 def handle_report(args) -> None:
@@ -198,7 +198,7 @@ def handle_full_flow(oauth, args) -> None:
     api_data = fetch_api_data(client, event_id=args.event_id, verbose=args.verbose)
 
     output_path = Path(__file__).parent.parent / args.output
-    run_field_discovery(api_data, output_path=str(output_path), verbose=args.verbose)
+    run_field_discovery(api_data, output_path=str(output_path))
 
 
 def load_environment(verbose: bool = False) -> None:

@@ -147,7 +147,9 @@ class DataExporter:
         try:
             data = fetch_func()
             json_key = f"{endpoint_name}"
-            exported_files[json_key] = self.export_json(data, base_filename, include_timestamp=False)
+            exported_files[json_key] = self.export_json(
+                data, base_filename, include_timestamp=False
+            )
 
             # Export CSV if list data is available
             if extract_list_key:
@@ -308,7 +310,7 @@ class DataExporter:
         Returns:
             Dictionary mapping endpoint names to exported file paths
         """
-        exported_files = {}
+        exported_files: Dict[str, str] = {}
 
         # Setup directories
         if self.custom_name:
