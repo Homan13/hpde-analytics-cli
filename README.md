@@ -236,7 +236,7 @@ This project uses [Semantic Versioning (SemVer)](https://semver.org/):
 - **MINOR** version for new functionality in a backward compatible manner
 - **PATCH** version for backward compatible bug fixes
 
-**Current Version:** 1.0.0
+**Current Version:** 2.0.0
 
 ## Authors
 
