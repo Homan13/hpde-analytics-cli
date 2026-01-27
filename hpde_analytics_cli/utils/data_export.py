@@ -119,6 +119,48 @@ class DataExporter:
 
         return filepath
 
+    def _log_export_success(self, json_filepath: str, items: Optional[List] = None) -> None:
+        """
+        Log successful export with optional item count.
+
+        Args:
+            json_filepath: Path to the JSON file
+            items: Optional list of items for count display
+        """
+        if items:
+            print(f"    [OK] {json_filepath} ({len(items)} items)")
+        else:
+            print(f"    [OK] {json_filepath}")
+
+    def _export_csv_if_needed(
+        self,
+        data: Dict[str, Any],
+        extract_list_key: str,
+        endpoint_name: str,
+        base_filename: str,
+        exported_files: Dict[str, str],
+    ) -> Optional[List]:
+        """
+        Export CSV file if list data is available.
+
+        Args:
+            data: Response data
+            extract_list_key: Key to extract list data from
+            endpoint_name: Name for the exported file key
+            base_filename: Base name for output files
+            exported_files: Dict to store file paths
+
+        Returns:
+            List of items if available, None otherwise
+        """
+        items = data.get(extract_list_key, [])
+        if items:
+            csv_key = f"{endpoint_name}_csv"
+            exported_files[csv_key] = self.export_csv(
+                items, base_filename, include_timestamp=False
+            )
+        return items if items else None
+
     def _export_endpoint_data(
         self,
         endpoint_name: str,
@@ -144,6 +186,7 @@ class DataExporter:
         """
         if verbose:
             print(f"  Exporting {endpoint_name}...")
+
         try:
             data = fetch_func()
             json_key = f"{endpoint_name}"
@@ -152,21 +195,14 @@ class DataExporter:
             )
 
             # Export CSV if list data is available
+            items = None
             if extract_list_key:
-                items = data.get(extract_list_key, [])
-                if items:
-                    csv_key = f"{endpoint_name}_csv"
-                    exported_files[csv_key] = self.export_csv(
-                        items, base_filename, include_timestamp=False
-                    )
-                    if verbose:
-                        print(f"    [OK] {exported_files[json_key]} ({len(items)} items)")
-                else:
-                    if verbose:
-                        print(f"    [OK] {exported_files[json_key]}")
-            else:
-                if verbose:
-                    print(f"    [OK] {exported_files[json_key]}")
+                items = self._export_csv_if_needed(
+                    data, extract_list_key, endpoint_name, base_filename, exported_files
+                )
+
+            if verbose:
+                self._log_export_success(exported_files[json_key], items)
 
             return data
         except Exception as e:

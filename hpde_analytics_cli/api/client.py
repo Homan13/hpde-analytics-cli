@@ -114,6 +114,57 @@ class MSRClient:
             response_body=response.text,
         )
 
+    def _should_retry_on_server_error(
+        self, response, endpoint: str, attempt: int, retries: int
+    ) -> APIError:
+        """
+        Handle server error response and determine if retry should occur.
+
+        Args:
+            response: HTTP response object
+            endpoint: API endpoint path
+            attempt: Current attempt number
+            retries: Maximum number of retries
+
+        Returns:
+            APIError to raise if no more retries
+
+        Raises:
+            APIError: If no more retries remain
+        """
+        error = APIError(
+            f"Server error: {response.status_code}",
+            status_code=response.status_code,
+            response_body=response.text,
+        )
+        if attempt < retries:
+            time.sleep(self.retry_delay * (attempt + 1))
+        else:
+            raise error
+        return error
+
+    def _should_retry_on_exception(self, e: Exception, attempt: int, retries: int) -> APIError:
+        """
+        Handle request exception and determine if retry should occur.
+
+        Args:
+            e: Exception that occurred
+            attempt: Current attempt number
+            retries: Maximum number of retries
+
+        Returns:
+            APIError to raise if no more retries
+
+        Raises:
+            APIError: If no more retries remain
+        """
+        error = APIError(f"Request failed: {str(e)}")
+        if attempt < retries:
+            time.sleep(self.retry_delay * (attempt + 1))
+        else:
+            raise error
+        return error
+
     def _request(
         self,
         method: str,
@@ -164,24 +215,12 @@ class MSRClient:
                     return result
 
                 # Server error - retry
-                last_error = APIError(
-                    f"Server error: {response.status_code}",
-                    status_code=response.status_code,
-                    response_body=response.text,
-                )
-                if attempt < retries:
-                    time.sleep(self.retry_delay * (attempt + 1))
-                    continue
-                raise last_error
+                last_error = self._should_retry_on_server_error(response, endpoint, attempt, retries)
 
             except APIError:
                 raise
             except Exception as e:
-                last_error = APIError(f"Request failed: {str(e)}")
-                if attempt < retries:
-                    time.sleep(self.retry_delay * (attempt + 1))
-                    continue
-                raise last_error
+                last_error = self._should_retry_on_exception(e, attempt, retries)
 
         raise last_error
 
