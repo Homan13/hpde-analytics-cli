@@ -11,6 +11,10 @@ from requests_oauthlib import OAuth1Session
 
 from hpde_analytics_cli.auth.oauth import MSROAuth
 
+# Error message constants
+ERR_EVENT_ID_REQUIRED = "Event ID is required"
+ERR_ORG_ID_REQUIRED = "Organization ID is required"
+
 
 class APIError(Exception):
     """Exception raised for API errors."""
@@ -45,6 +49,70 @@ class MSRClient:
     def _get_session(self) -> OAuth1Session:
         """Get an authenticated OAuth session."""
         return self.oauth.get_oauth_session()
+
+    def _execute_http_request(
+        self,
+        method: str,
+        session: OAuth1Session,
+        url: str,
+        params: Optional[Dict[str, Any]],
+        headers: Dict[str, str],
+    ):
+        """Execute HTTP request based on method type."""
+        if method.upper() == "GET":
+            return session.get(url, params=params, headers=headers)
+        elif method.upper() == "POST":
+            return session.post(url, data=params, headers=headers)
+        else:
+            raise APIError(f"Unsupported HTTP method: {method}")
+
+    def _handle_response_status(self, response, endpoint: str) -> Optional[Dict[str, Any]]:
+        """
+        Handle HTTP response status codes.
+
+        Returns:
+            Parsed response data if successful, None if should retry
+
+        Raises:
+            APIError: For non-retryable errors
+        """
+        if response.status_code == 200:
+            data = response.json()
+            # MSR wraps responses in {"response": {...}}
+            if isinstance(data, dict) and "response" in data:
+                data = data["response"]
+            return data
+
+        if response.status_code == 401:
+            raise APIError(
+                "Authentication failed - tokens may be invalid or expired",
+                status_code=401,
+                response_body=response.text,
+            )
+
+        if response.status_code == 403:
+            raise APIError(
+                "Access forbidden - insufficient permissions",
+                status_code=403,
+                response_body=response.text,
+            )
+
+        if response.status_code == 404:
+            raise APIError(
+                f"Resource not found: {endpoint}",
+                status_code=404,
+                response_body=response.text,
+            )
+
+        if response.status_code >= 500:
+            # Server error - signal retry
+            return None
+
+        raise APIError(
+            f"Request failed with status {response.status_code}",
+            status_code=response.status_code,
+            response_body=response.text,
+        )
 
     def _request(
         self,
@@ -89,55 +157,22 @@ class MSRClient:
 
         for attempt in range(retries + 1):
             try:
-                if method.upper() == "GET":
-                    response = session.get(url, params=params, headers=headers)
-                elif method.upper() == "POST":
-                    response = session.post(url, data=params, headers=headers)
-                else:
-                    raise APIError(f"Unsupported HTTP method: {method}")
+                response = self._execute_http_request(method, session, url, params, headers)
+                result = self._handle_response_status(response, endpoint)
 
-                # Handle response
-                if response.status_code == 200:
-                    data = response.json()
-                    # MSR wraps responses in {"response": {...}}
-                    if isinstance(data, dict) and "response" in data:
-                        data = data["response"]
-                    return data
-                elif response.status_code == 401:
-                    raise APIError(
-                        "Authentication failed - tokens may be invalid or expired",
-                        status_code=401,
-                        response_body=response.text,
-                    )
-                elif response.status_code == 403:
-                    raise APIError(
-                        "Access forbidden - insufficient permissions",
-                        status_code=403,
-                        response_body=response.text,
-                    )
-                elif response.status_code == 404:
-                    raise APIError(
-                        f"Resource not found: {endpoint}",
-                        status_code=404,
-                        response_body=response.text,
-                    )
-                elif response.status_code >= 500:
-                    # Server error - retry
-                    last_error = APIError(
-                        f"Server error: {response.status_code}",
-                        status_code=response.status_code,
-                        response_body=response.text,
-                    )
-                    if attempt < retries:
-                        time.sleep(self.retry_delay * (attempt + 1))
-                        continue
-                    raise last_error
-                else:
-                    raise APIError(
-                        f"Request failed with status {response.status_code}",
-                        status_code=response.status_code,
-                        response_body=response.text,
-                    )
+                if result is not None:
+                    return result
+
+                # Server error - retry
+                last_error = APIError(
+                    f"Server error: {response.status_code}",
+                    status_code=response.status_code,
+                    response_body=response.text,
+                )
+                if attempt < retries:
+                    time.sleep(self.retry_delay * (attempt + 1))
+                    continue
+                raise last_error
 
             except APIError:
                 raise
@@ -173,7 +208,7 @@ class MSRClient:
         """
         org_id = organization_id or self.organization_id
         if not org_id:
-            raise ValueError("Organization ID is required")
+            raise ValueError(ERR_ORG_ID_REQUIRED)
 
         return self._request("GET", f"/rest/calendars/organization/{org_id}")
 
@@ -190,7 +225,7 @@ class MSRClient:
         Endpoint: GET /rest/events/{event_id}/entrylist
         """
         if not event_id:
-            raise ValueError("Event ID is required")
+            raise ValueError(ERR_EVENT_ID_REQUIRED)
 
         return self._request("GET", f"/rest/events/{event_id}/entrylist")
 
@@ -207,7 +242,7 @@ class MSRClient:
         Endpoint: GET /rest/events/{event_id}/attendees
         """
         if not event_id:
-            raise ValueError("Event ID is required")
+            raise ValueError(ERR_EVENT_ID_REQUIRED)
 
         return self._request("GET", f"/rest/events/{event_id}/attendees")
 
@@ -224,7 +259,7 @@ class MSRClient:
         Endpoint: GET /rest/events/{event_id}/assignments
         """
         if not event_id:
-            raise ValueError("Event ID is required")
+            raise ValueError(ERR_EVENT_ID_REQUIRED)
 
         return self._request("GET", f"/rest/events/{event_id}/assignments")
 
@@ -241,9 +276,60 @@ class MSRClient:
         Endpoint: GET /rest/events/{event_id}/feeds/timing
         """
         if not event_id:
-            raise ValueError("Event ID is required")
+            raise ValueError(ERR_EVENT_ID_REQUIRED)
 
         return self._request("GET", f"/rest/events/{event_id}/feeds/timing")
+
+    def _fetch_user_profile(self, results: Dict[str, Any]) -> None:
+        """Fetch and store user profile data."""
+        print("  Fetching /rest/me...")
+        try:
+            results["me"] = self.get_me()
+            print("    [OK] User profile retrieved")
+        except APIError as e:
+            print(f"    [ERROR] {e}")
+            results["me"] = {"error": str(e)}
+
+    def _fetch_organization_calendar(
+        self, results: Dict[str, Any], event_id: Optional[str]
+    ) -> Optional[str]:
+        """
+        Fetch and store organization calendar data.
+
+        Returns:
+            Event ID if found in calendar, otherwise the input event_id
+        """
+        if not self.organization_id:
+            return event_id
+
+        print(f"  Fetching organization calendar (org: {self.organization_id})...")
+        try:
+            results["calendar"] = self.get_organization_calendar()
+            print("    [OK] Calendar retrieved")
+
+            # Get first event ID if not provided
+            if not event_id:
+                events = results["calendar"].get("events", [])
+                if events:
+                    event_id = events[0].get("id")
+                    print(f"    Using first event from calendar: {event_id}")
+        except APIError as e:
+            print(f"    [ERROR] {e}")
+            results["calendar"] = {"error": str(e)}
+
+        return event_id
+
+    def _fetch_event_endpoint(
+        self, results: Dict[str, Any], key: str, method, description: str, event_id: str
+    ) -> None:
+        """Fetch data from a single event endpoint."""
+        print(f"  Fetching {description} (event: {event_id})...")
+        try:
+            results[key] = method(event_id)
+            print(f"    [OK] {description} retrieved")
+        except APIError as e:
+            print(f"    [ERROR] {e}")
+            results[key] = {"error": str(e)}
 
     def get_all_endpoint_data(self, event_id: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -257,31 +343,11 @@ class MSRClient:
         """
         results = {}
 
-        # Always fetch user profile
-        print("  Fetching /rest/me...")
-        try:
-            results["me"] = self.get_me()
-            print("    [OK] User profile retrieved")
-        except APIError as e:
-            print(f"    [ERROR] {e}")
-            results["me"] = {"error": str(e)}
+        # Fetch user profile
+        self._fetch_user_profile(results)
 
-        # Fetch organization calendar
-        if self.organization_id:
-            print(f"  Fetching organization calendar (org: {self.organization_id})...")
-            try:
-                results["calendar"] = self.get_organization_calendar()
-                print("    [OK] Calendar retrieved")
-
-                # Get first event ID if not provided
-                if not event_id:
-                    events = results["calendar"].get("events", [])
-                    if events:
-                        event_id = events[0].get("id")
-                        print(f"    Using first event from calendar: {event_id}")
-            except APIError as e:
-                print(f"    [ERROR] {e}")
-                results["calendar"] = {"error": str(e)}
+        # Fetch organization calendar and potentially get event_id
+        event_id = self._fetch_organization_calendar(results, event_id)
 
         # Event-specific endpoints (require event_id)
         if event_id:
@@ -293,13 +359,7 @@ class MSRClient:
             ]
 
             for key, method, description in event_endpoints:
-                print(f"  Fetching {description} (event: {event_id})...")
-                try:
-                    results[key] = method(event_id)
-                    print(f"    [OK] {description} retrieved")
-                except APIError as e:
-                    print(f"    [ERROR] {e}")
-                    results[key] = {"error": str(e)}
+                self._fetch_event_endpoint(results, key, method, description, event_id)
         else:
             print("  [SKIP] No event ID available - skipping event-specific endpoints")
             print("         Use --event-id to specify an event, or ensure calendar has events")

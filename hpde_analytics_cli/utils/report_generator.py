@@ -127,154 +127,195 @@ class ReportGenerator:
         else:
             return ""
 
-    def _get_class_group(self, tt_class: str) -> str:
+    def _format_days_string(self, days_tt: Set[str]) -> Tuple[str, int]:
         """
-        Determine class grouping for pivot table analysis.
-
-        Groups:
-        - Max (Max 1, Max 2, Max 5, Max 6, etc.)
-        - Sport (Sport 1, Sport 2, Sport 3, Sport 4, etc.)
-        - Tuner (Tuner 1, Tuner 2, Tuner 3, Tuner 4, etc.)
-        - Unlimited (Unlimited 1, Unlimited 2, etc.)
-        - Other (anything else or empty)
-        """
-        if not tt_class:
-            return "Other"
-
-        class_lower = tt_class.lower().strip()
-
-        if class_lower.startswith("max"):
-            return "Max"
-        elif class_lower.startswith("sport"):
-            return "Sport"
-        elif class_lower.startswith("tuner"):
-            return "Tuner"
-        elif class_lower.startswith("unlimited"):
-            return "Unlimited"
-        else:
-            return "Other"
-
-    def generate_tt_report(self, output_path: Optional[str] = None) -> Tuple[str, int]:
-        """
-        Generate consolidated Time Trials report.
-
-        Only includes drivers who participated in Time Trials.
-        Tracks if they also instructed and/or did Advanced HPDE (AYCE).
-
-        Args:
-            output_path: Path for output file (default: same dir as input)
+        Format days participation into display string and count.
 
         Returns:
-            Tuple of (path to generated report file, number of drivers)
+            Tuple of (formatted days string, day count)
         """
-        if not OPENPYXL_AVAILABLE:
-            raise ImportError(
-                "openpyxl is required for Excel export. Install with: pip install openpyxl"
-            )
+        has_fri = "Friday" in days_tt
+        has_sat = "Saturday" in days_tt
+        has_sun = "Sunday" in days_tt
+        day_count = sum([has_fri, has_sat, has_sun])
 
-        # Read entry list data
-        entrylist = self._read_csv(self.entrylist_file)
-        attendees = self._read_csv(self.attendees_file)
+        if day_count == 3:
+            return "All 3", day_count
+        if day_count == 2:
+            if has_fri and has_sat:
+                return "Fri/Sat", day_count
+            if has_fri and has_sun:
+                return "Fri/Sun", day_count
+            return "Sat/Sun", day_count
+        if day_count == 1:
+            if has_fri:
+                return "Friday", day_count
+            if has_sat:
+                return "Saturday", day_count
+            return "Sunday", day_count
+        return "", day_count
 
-        # Read assignments JSON for tire data (not in CSV)
+    def _format_vehicle_string(self, driver: Dict) -> str:
+        """Combine year, make, model into single vehicle string."""
+        parts = []
+        if driver["year"]:
+            parts.append(str(driver["year"]))
+        if driver["make"]:
+            parts.append(driver["make"])
+        if driver["model"]:
+            parts.append(driver["model"])
+        return " ".join(parts)
+
+    def _write_driver_row(self, ws, row_num: int, driver: Dict, thin_border, center_cols: List[int]) -> None:
+        """Write a single driver's data row to the worksheet."""
+        # Format days and get count
+        days_str, day_count = self._format_days_string(driver["days_tt"])
+
+        # Calculate derived values
+        is_ayce = driver["is_tt"] and driver["is_advanced_hpde"]
+        class_group = self._get_class_group(driver["class"])
+        day_count_str = self._get_day_count(day_count)
+        participation_type = self._get_participation_type(driver["is_instructor"], is_ayce)
+        vehicle = self._format_vehicle_string(driver)
+
+        # Build row data
+        row_data = [
+            driver["firstName"],
+            driver["lastName"],
+            driver["email"],
+            driver["memberId"],
+            driver["class"],
+            class_group,
+            driver["vehicleNumber"],
+            vehicle,
+            driver["color"],
+            driver["tireBrand"],
+            driver["sponsor"],
+            days_str,
+            day_count_str,
+            "Yes" if driver["is_instructor"] else "No",
+            "Yes" if is_ayce else "No",
+            participation_type,
+            driver["status"],
+        ]
+
+        # Write cells with formatting
+        for col, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col, value=value)
+            cell.border = thin_border
+            if col in center_cols:
+                cell.alignment = Alignment(horizontal="center")
+
+    def _build_tire_lookup(self) -> Dict[str, str]:
+        """Build lookup dictionary for tire brands from assignments JSON."""
         tire_lookup = {}
-        if os.path.exists(self.assignments_json_file):
-            assignments_data = self._read_json(self.assignments_json_file)
-            for assignment in assignments_data.get("assignments", []):
-                key = self._get_driver_key(assignment)
-                group = assignment.get("group", "")
-                tire = assignment.get("tireBrand", "")
-                # Only capture tire from Time Trials entries
-                if key and key != "|" and self._is_time_trials(group) and tire:
-                    tire_lookup[key] = tire
+        if not os.path.exists(self.assignments_json_file):
+            return tire_lookup
 
-        # Build attendee lookup for email and member ID
+        assignments_data = self._read_json(self.assignments_json_file)
+        for assignment in assignments_data.get("assignments", []):
+            key = self._get_driver_key(assignment)
+            group = assignment.get("group", "")
+            tire = assignment.get("tireBrand", "")
+            # Only capture tire from Time Trials entries
+            if key and key != "|" and self._is_time_trials(group) and tire:
+                tire_lookup[key] = tire
+
+        return tire_lookup
+
+    def _build_attendee_lookup(self, attendees: List[Dict]) -> Dict[str, Dict]:
+        """Build lookup dictionary for attendee data."""
         attendee_lookup = {}
         for att in attendees:
             key = self._get_driver_key(att)
             if key and key != "|":
                 attendee_lookup[key] = att
+        return attendee_lookup
 
-        # Process entries - group by driver
-        drivers: Dict[str, Dict] = {}
+    def _initialize_driver_record(self, entry: Dict) -> Dict:
+        """Initialize a new driver record with default values."""
+        return {
+            "firstName": entry.get("firstName", "").strip(),
+            "lastName": entry.get("lastName", "").strip(),
+            "class": "",
+            "make": "",
+            "model": "",
+            "year": "",
+            "vehicleNumber": "",
+            "color": "",
+            "sponsor": "",
+            "tireBrand": "",
+            "is_tt": False,
+            "is_instructor": False,
+            "is_advanced_hpde": False,
+            "days_tt": set(),
+            "days_instructor": set(),
+            "days_advanced": set(),
+            "email": "",
+            "memberId": "",
+            "status": "",
+        }
 
-        for entry in entrylist:
-            # Skip worker-only entries
-            if self._is_worker_only(entry.get("segment", "")):
-                continue
+    def _update_driver_with_tt_data(self, driver: Dict, entry: Dict, day: Optional[str]) -> None:
+        """Update driver record with Time Trials data."""
+        driver["is_tt"] = True
+        if day:
+            driver["days_tt"].add(day)
+        # Capture vehicle info from TT entry
+        if entry.get("class"):
+            driver["class"] = entry.get("class", "")
+        if entry.get("make"):
+            driver["make"] = entry.get("make", "")
+        if entry.get("model"):
+            driver["model"] = entry.get("model", "")
+        if entry.get("year"):
+            driver["year"] = entry.get("year", "")
+        if entry.get("vehicleNumber"):
+            driver["vehicleNumber"] = entry.get("vehicleNumber", "")
+        if entry.get("color"):
+            driver["color"] = entry.get("color", "")
+        if entry.get("sponsor"):
+            driver["sponsor"] = entry.get("sponsor", "")
 
-            driver_key = self._get_driver_key(entry)
-            if not driver_key or driver_key == "|":
-                continue
+    def _process_entry(self, entry: Dict, drivers: Dict[str, Dict]) -> None:
+        """Process a single entry and update driver records."""
+        # Skip worker-only entries
+        if self._is_worker_only(entry.get("segment", "")):
+            return
 
-            group = entry.get("group", "")
-            segment = entry.get("segment", "")
-            day = self._parse_segment(segment)
+        driver_key = self._get_driver_key(entry)
+        if not driver_key or driver_key == "|":
+            return
 
-            # Initialize driver record if new
-            if driver_key not in drivers:
-                drivers[driver_key] = {
-                    "firstName": entry.get("firstName", "").strip(),
-                    "lastName": entry.get("lastName", "").strip(),
-                    "class": "",
-                    "make": "",
-                    "model": "",
-                    "year": "",
-                    "vehicleNumber": "",
-                    "color": "",
-                    "sponsor": "",
-                    "tireBrand": "",
-                    "is_tt": False,
-                    "is_instructor": False,
-                    "is_advanced_hpde": False,
-                    "days_tt": set(),
-                    "days_instructor": set(),
-                    "days_advanced": set(),
-                    "email": "",
-                    "memberId": "",
-                    "status": "",
-                }
+        group = entry.get("group", "")
+        segment = entry.get("segment", "")
+        day = self._parse_segment(segment)
 
-            driver = drivers[driver_key]
+        # Initialize driver record if new
+        if driver_key not in drivers:
+            drivers[driver_key] = self._initialize_driver_record(entry)
 
-            # Track Time Trials participation
-            if self._is_time_trials(group):
-                driver["is_tt"] = True
-                if day:
-                    driver["days_tt"].add(day)
-                # Capture vehicle info from TT entry (most relevant)
-                if entry.get("class"):
-                    driver["class"] = entry.get("class", "")
-                if entry.get("make"):
-                    driver["make"] = entry.get("make", "")
-                if entry.get("model"):
-                    driver["model"] = entry.get("model", "")
-                if entry.get("year"):
-                    driver["year"] = entry.get("year", "")
-                if entry.get("vehicleNumber"):
-                    driver["vehicleNumber"] = entry.get("vehicleNumber", "")
-                if entry.get("color"):
-                    driver["color"] = entry.get("color", "")
-                if entry.get("sponsor"):
-                    driver["sponsor"] = entry.get("sponsor", "")
+        driver = drivers[driver_key]
 
-            # Track Instructor participation
-            if self._is_instructor(group):
-                driver["is_instructor"] = True
-                if day:
-                    driver["days_instructor"].add(day)
+        # Track participation types
+        if self._is_time_trials(group):
+            self._update_driver_with_tt_data(driver, entry, day)
 
-            # Track Advanced HPDE participation
-            if self._is_advanced_hpde(group):
-                driver["is_advanced_hpde"] = True
-                if day:
-                    driver["days_advanced"].add(day)
+        if self._is_instructor(group):
+            driver["is_instructor"] = True
+            if day:
+                driver["days_instructor"].add(day)
 
-        # Filter to only Time Trials participants
-        tt_drivers = {k: v for k, v in drivers.items() if v["is_tt"]}
+        if self._is_advanced_hpde(group):
+            driver["is_advanced_hpde"] = True
+            if day:
+                driver["days_advanced"].add(day)
 
-        # Add attendee info (email, memberId, status) and tire data
-        for driver_key, driver in tt_drivers.items():
+    def _enrich_drivers_with_metadata(
+        self, drivers: Dict[str, Dict], attendee_lookup: Dict, tire_lookup: Dict
+    ) -> None:
+        """Add attendee info and tire data to driver records."""
+        for driver_key, driver in drivers.items():
             if driver_key in attendee_lookup:
                 att = attendee_lookup[driver_key]
                 driver["email"] = att.get("email", "")
@@ -283,12 +324,12 @@ class ReportGenerator:
             if driver_key in tire_lookup:
                 driver["tireBrand"] = tire_lookup[driver_key]
 
-        # Create Excel workbook
+    def _create_workbook_with_headers(self) -> Tuple:
+        """Create Excel workbook with formatted headers."""
         wb = Workbook()
         ws = wb.active
         ws.title = "Time Trials Report"
 
-        # Define headers
         headers = [
             "First Name",
             "Last Name",
@@ -328,97 +369,94 @@ class ReportGenerator:
             cell.alignment = header_alignment
             cell.border = thin_border
 
-        # Sort drivers by last name, then first name
-        sorted_drivers = sorted(
-            tt_drivers.values(), key=lambda d: (d["lastName"].lower(), d["firstName"].lower())
-        )
+        return wb, ws, headers, thin_border
 
-        # Write data rows
-        for row_num, driver in enumerate(sorted_drivers, 2):
-            # Determine days string
-            days_tt = driver["days_tt"]
-            has_fri = "Friday" in days_tt
-            has_sat = "Saturday" in days_tt
-            has_sun = "Sunday" in days_tt
-            day_count = sum([has_fri, has_sat, has_sun])
-
-            if day_count == 3:
-                days_str = "All 3"
-            elif day_count == 2:
-                if has_fri and has_sat:
-                    days_str = "Fri/Sat"
-                elif has_fri and has_sun:
-                    days_str = "Fri/Sun"
-                else:
-                    days_str = "Sat/Sun"
-            elif day_count == 1:
-                if has_fri:
-                    days_str = "Friday"
-                elif has_sat:
-                    days_str = "Saturday"
-                else:
-                    days_str = "Sunday"
-            else:
-                days_str = ""
-
-            # AYCE = Time Trials + Advanced HPDE
-            is_ayce = driver["is_tt"] and driver["is_advanced_hpde"]
-
-            # Derived columns for pivot tables
-            class_group = self._get_class_group(driver["class"])
-            day_count_str = self._get_day_count(day_count)
-            participation_type = self._get_participation_type(driver["is_instructor"], is_ayce)
-
-            # Combine year, make, model into single Vehicle column
-            vehicle_parts = []
-            if driver["year"]:
-                vehicle_parts.append(str(driver["year"]))
-            if driver["make"]:
-                vehicle_parts.append(driver["make"])
-            if driver["model"]:
-                vehicle_parts.append(driver["model"])
-            vehicle = " ".join(vehicle_parts)
-
-            row_data = [
-                driver["firstName"],
-                driver["lastName"],
-                driver["email"],
-                driver["memberId"],
-                driver["class"],
-                class_group,
-                driver["vehicleNumber"],
-                vehicle,
-                driver["color"],
-                driver["tireBrand"],
-                driver["sponsor"],
-                days_str,
-                day_count_str,
-                "Yes" if driver["is_instructor"] else "No",
-                "Yes" if is_ayce else "No",
-                participation_type,
-                driver["status"],
-            ]
-
-            # Columns to center: Class Group (6), Days (12), Day Count (13), Instructor (14), AYCE (15), Participation Type (16)
-            center_cols = [6, 12, 13, 14, 15, 16]
-
-            for col, value in enumerate(row_data, 1):
-                cell = ws.cell(row=row_num, column=col, value=value)
-                cell.border = thin_border
-                if col in center_cols:
-                    cell.alignment = Alignment(horizontal="center")
-
-        # Auto-adjust column widths
+    def _auto_adjust_column_widths(self, ws, headers: List[str], num_rows: int) -> None:
+        """Auto-adjust column widths based on content."""
         for col in range(1, len(headers) + 1):
             max_length = len(headers[col - 1])
-            for row in range(2, len(sorted_drivers) + 2):
+            for row in range(2, num_rows + 2):
                 cell_value = ws.cell(row=row, column=col).value
                 if cell_value:
                     max_length = max(max_length, len(str(cell_value)))
             adjusted_width = min(max_length + 2, 50)
             ws.column_dimensions[get_column_letter(col)].width = adjusted_width
 
-        # Freeze header row
+    def _get_class_group(self, tt_class: str) -> str:
+        """
+        Determine class grouping for pivot table analysis.
+
+        Groups:
+        - Max (Max 1, Max 2, Max 5, Max 6, etc.)
+        - Sport (Sport 1, Sport 2, Sport 3, Sport 4, etc.)
+        - Tuner (Tuner 1, Tuner 2, Tuner 3, Tuner 4, etc.)
+        - Unlimited (Unlimited 1, Unlimited 2, etc.)
+        - Other (anything else or empty)
+        """
+        if not tt_class:
+            return "Other"
+
+        class_lower = tt_class.lower().strip()
+
+        if class_lower.startswith("max"):
+            return "Max"
+        if class_lower.startswith("sport"):
+            return "Sport"
+        if class_lower.startswith("tuner"):
+            return "Tuner"
+        if class_lower.startswith("unlimited"):
+            return "Unlimited"
+        return "Other"
+
+    def generate_tt_report(self, output_path: Optional[str] = None) -> Tuple[str, int]:
+        """
+        Generate consolidated Time Trials report.
+
+        Only includes drivers who participated in Time Trials.
+        Tracks if they also instructed and/or did Advanced HPDE (AYCE).
+
+        Args:
+            output_path: Path for output file (default: same dir as input)
+
+        Returns:
+            Tuple of (path to generated report file, number of drivers)
+        """
+        if not OPENPYXL_AVAILABLE:
+            raise ImportError(
+                "openpyxl is required for Excel export. Install with: pip install openpyxl"
+            )
+
+        # Read and prepare data
+        entrylist = self._read_csv(self.entrylist_file)
+        attendees = self._read_csv(self.attendees_file)
+        tire_lookup = self._build_tire_lookup()
+        attendee_lookup = self._build_attendee_lookup(attendees)
+
+        # Process entries - group by driver
+        drivers: Dict[str, Dict] = {}
+        for entry in entrylist:
+            self._process_entry(entry, drivers)
+
+        # Filter to only Time Trials participants
+        tt_drivers = {k: v for k, v in drivers.items() if v["is_tt"]}
+
+        # Add attendee info and tire data
+        self._enrich_drivers_with_metadata(tt_drivers, attendee_lookup, tire_lookup)
+
+        # Create Excel workbook with headers
+        wb, ws, headers, thin_border = self._create_workbook_with_headers()
+
+        # Sort drivers and write data rows
+        sorted_drivers = sorted(
+            tt_drivers.values(), key=lambda d: (d["lastName"].lower(), d["firstName"].lower())
+        )
+
+        center_cols = [6, 12, 13, 14, 15, 16]
+        for row_num, driver in enumerate(sorted_drivers, 2):
+            self._write_driver_row(ws, row_num, driver, thin_border, center_cols)
+
+        # Format worksheet
+        self._auto_adjust_column_widths(ws, headers, len(sorted_drivers))
         ws.freeze_panes = "A2"
 
         # Set output path

@@ -71,6 +71,23 @@ class FieldDiscovery:
         self.fields: Dict[str, FieldInfo] = {}
         self.endpoint_fields: Dict[str, List[str]] = {}
 
+    def _check_special_string_type(self, value: str) -> Optional[str]:
+        """Check if string matches special patterns (date, uuid, url, email)."""
+        # Check for date patterns
+        for pattern in self.DATE_PATTERNS:
+            if re.match(pattern, value):
+                return "datetime" if "T" in value else "date"
+
+        # Check other special patterns
+        if re.match(self.UUID_PATTERN, value):
+            return "uuid"
+        if re.match(self.URL_PATTERN, value):
+            return "url"
+        if re.match(self.EMAIL_PATTERN, value):
+            return "email"
+
+        return None
+
     def _detect_type(self, value: Any) -> str:
         """
         Detect the type of a value, including special string subtypes.
@@ -83,32 +100,20 @@ class FieldDiscovery:
         """
         if value is None:
             return "null"
-        elif isinstance(value, bool):
+        if isinstance(value, bool):
             return "boolean"
-        elif isinstance(value, int):
+        if isinstance(value, int):
             return "integer"
-        elif isinstance(value, float):
+        if isinstance(value, float):
             return "number"
-        elif isinstance(value, str):
-            # Check for special string types
-            for pattern in self.DATE_PATTERNS:
-                if re.match(pattern, value):
-                    return "datetime" if "T" in value else "date"
-
-            if re.match(self.UUID_PATTERN, value):
-                return "uuid"
-            if re.match(self.URL_PATTERN, value):
-                return "url"
-            if re.match(self.EMAIL_PATTERN, value):
-                return "email"
-
-            return "string"
-        elif isinstance(value, list):
+        if isinstance(value, str):
+            special_type = self._check_special_string_type(value)
+            return special_type if special_type else "string"
+        if isinstance(value, list):
             return "array"
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             return "object"
-        else:
-            return "unknown"
+        return "unknown"
 
     def _parse_value(self, value: Any, path: str, endpoint: str) -> None:
         """
@@ -316,7 +321,6 @@ def save_inventory(inventory: dict, output_path: str) -> None:
 def run_field_discovery(
     api_data: Dict[str, Any],
     output_path: Optional[str] = None,
-    verbose: bool = False,
 ) -> dict:
     """
     Run field discovery on API response data.
@@ -324,7 +328,6 @@ def run_field_discovery(
     Args:
         api_data: Dict of API responses keyed by endpoint name
         output_path: Optional path to save JSON inventory
-        verbose: Print detailed output
 
     Returns:
         Field inventory dict
