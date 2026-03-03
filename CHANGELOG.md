@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.3](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.2...v6.0.3) (2026-03-03)
+
+
+### Bug Fixes
+
+* set package version from release tag at build time in publish workflow ([cb54be2](https://github.com/Homan13/hpde-analytics-cli/commit/cb54be2a38157082de5bd3e55c90a0124094380f))
+
 ## [6.0.2](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.1...v6.0.2) (2026-03-03)
 
 
