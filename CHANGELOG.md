@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.1](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.0...v6.0.1) (2026-03-03)
+
+
+### Bug Fixes
+
+* resolve CI failures and sync version to v6.0.0 ([789b016](https://github.com/Homan13/hpde-analytics-cli/commit/789b01683c8705901a26b4fadec57e33f6b8abb3))
+
 ## [6.0.0](https://github.com/Homan13/hpde-analytics-cli/compare/v5.0.0...v6.0.0) (2026-03-03)
 
 
