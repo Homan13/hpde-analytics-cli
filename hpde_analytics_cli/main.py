@@ -222,9 +222,7 @@ def handle_populate_emails(oauth, args) -> None:
         client = create_client_from_oauth(oauth, organization_id=args.org_id)
         entrylist, attendees = populator.load_msr_data_from_api(client, args.event_id)
     else:
-        print(
-            "Error: Either --export-dir or --event-id is required for --populate-emails."
-        )
+        print("Error: Either --export-dir or --event-id is required for --populate-emails.")
         sys.exit(1)
 
     # Build name -> email lookup filtered by run group
@@ -234,9 +232,7 @@ def handle_populate_emails(oauth, args) -> None:
     print(f"  Found {len(email_lookup)} student(s) with emails in MSR data")
 
     if not email_lookup:
-        print(
-            f"\n  Warning: No students found matching group filter '{group_filter}'."
-        )
+        print(f"\n  Warning: No students found matching group filter '{group_filter}'.")
         print("  Check --group-filter against your event's run group names.")
         return
 

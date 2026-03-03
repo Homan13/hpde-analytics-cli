@@ -215,7 +215,9 @@ class MSRClient:
                     return result
 
                 # Server error - retry
-                last_error = self._should_retry_on_server_error(response, endpoint, attempt, retries)
+                last_error = self._should_retry_on_server_error(
+                    response, endpoint, attempt, retries
+                )
 
             except APIError:
                 raise

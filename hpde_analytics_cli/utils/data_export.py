@@ -156,9 +156,7 @@ class DataExporter:
         items = data.get(extract_list_key, [])
         if items:
             csv_key = f"{endpoint_name}_csv"
-            exported_files[csv_key] = self.export_csv(
-                items, base_filename, include_timestamp=False
-            )
+            exported_files[csv_key] = self.export_csv(items, base_filename, include_timestamp=False)
         return items if items else None
 
     def _export_endpoint_data(

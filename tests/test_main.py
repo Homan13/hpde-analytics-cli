@@ -322,12 +322,18 @@ class TestPopulateEmailsParser:
         args = parser.parse_args(
             [
                 "--populate-emails",
-                "--sheet-id", "abc123",
-                "--export-dir", "/path/to/export",
-                "--name-column", "Student Name",
-                "--email-column", "D",
-                "--group-filter", "novice hpde",
-                "--service-account-key", "/path/to/key.json",
+                "--sheet-id",
+                "abc123",
+                "--export-dir",
+                "/path/to/export",
+                "--name-column",
+                "Student Name",
+                "--email-column",
+                "D",
+                "--group-filter",
+                "novice hpde",
+                "--service-account-key",
+                "/path/to/key.json",
                 "--verbose",
             ]
         )
