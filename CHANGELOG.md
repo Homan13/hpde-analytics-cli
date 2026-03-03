@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.2](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.1...v6.0.2) (2026-03-03)
+
+
+### Bug Fixes
+
+* correct release-please config to update pyproject.toml on release ([4442558](https://github.com/Homan13/hpde-analytics-cli/commit/4442558daee663fdee9dd23d3a790b748238f99b))
+
 ## [6.0.1](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.0...v6.0.1) (2026-03-03)
 
 
