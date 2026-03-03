@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.4](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.3...v6.0.4) (2026-03-03)
+
+
+### Bug Fixes
+
+* resolve open CodeQL security alerts ([30dc76e](https://github.com/Homan13/hpde-analytics-cli/commit/30dc76e82039c47e66815f0efd27dd99c43bc7b5))
+
 ## [6.0.3](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.2...v6.0.3) (2026-03-03)
 
 
