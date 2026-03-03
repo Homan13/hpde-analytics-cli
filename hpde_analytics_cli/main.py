@@ -18,7 +18,7 @@ from hpde_analytics_cli.api.client import create_client_from_oauth
 from hpde_analytics_cli.auth.credentials import CredentialManager
 from hpde_analytics_cli.auth.oauth import MSROAuth, create_oauth_from_env
 from hpde_analytics_cli.integrations.email_populator import EmailPopulator, NameMatcher
-from hpde_analytics_cli.integrations.google_sheets import GoogleSheetsClient, GoogleSheetsError
+from hpde_analytics_cli.integrations.google_sheets import GoogleSheetsClient
 from hpde_analytics_cli.utils.data_export import DataExporter
 from hpde_analytics_cli.utils.field_discovery import run_field_discovery
 from hpde_analytics_cli.utils.report_generator import generate_report

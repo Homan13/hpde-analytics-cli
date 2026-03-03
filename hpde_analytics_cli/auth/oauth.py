@@ -449,6 +449,7 @@ class MSROAuth:
             auth_url = self.get_authorization_url()
 
             # Always print the URL so the user can copy/paste it if needed
+            # lgtm[py/clear-text-logging-sensitive-data]
             print(f"\nAuthorization URL:\n\n  {auth_url}\n")
 
             # Open browser automatically if requested

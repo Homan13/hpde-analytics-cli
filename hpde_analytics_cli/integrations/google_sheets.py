@@ -9,8 +9,6 @@ from typing import Any, List, Optional, Tuple
 
 try:
     import gspread
-    from google.oauth2.service_account import Credentials  # noqa: F401
-
     GSPREAD_AVAILABLE = True
 except ImportError:
     GSPREAD_AVAILABLE = False
