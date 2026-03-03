@@ -9,9 +9,8 @@
       "bump-patch-for-minor-pre-major": true,
       "extra-files": [
         {
-          "type": "toml",
-          "path": "pyproject.toml",
-          "jsonpath": "$.project.version"
+          "type": "generic",
+          "path": "pyproject.toml"
         }
       ]
     }
