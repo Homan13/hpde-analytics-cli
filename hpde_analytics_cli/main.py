@@ -6,6 +6,7 @@ Entry point for the application.
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -16,9 +17,13 @@ from dotenv import load_dotenv
 from hpde_analytics_cli.api.client import create_client_from_oauth
 from hpde_analytics_cli.auth.credentials import CredentialManager
 from hpde_analytics_cli.auth.oauth import MSROAuth, create_oauth_from_env
+from hpde_analytics_cli.integrations.email_populator import EmailPopulator, NameMatcher
+from hpde_analytics_cli.integrations.google_sheets import GoogleSheetsClient, GoogleSheetsError
 from hpde_analytics_cli.utils.data_export import DataExporter
 from hpde_analytics_cli.utils.field_discovery import run_field_discovery
 from hpde_analytics_cli.utils.report_generator import generate_report
+
+ERR_NO_VALID_TOKENS = "Error: No valid tokens found. Run with --auth first."
 
 
 def print_profile(profile: Dict[str, Any]) -> None:
@@ -89,7 +94,7 @@ def handle_discover(oauth, args) -> None:
     """Handle field discovery command."""
     print("Running field discovery...")
     if not oauth.has_valid_tokens():
-        print("Error: No valid tokens found. Run with --auth first.")
+        print(ERR_NO_VALID_TOKENS)
         sys.exit(1)
 
     profile = oauth.validate_connection()
@@ -141,7 +146,7 @@ def handle_export(oauth, args) -> None:
     """Handle data export command."""
     print("Exporting event data...")
     if not oauth.has_valid_tokens():
-        print("Error: No valid tokens found. Run with --auth first.")
+        print(ERR_NO_VALID_TOKENS)
         sys.exit(1)
 
     if not args.event_id:
@@ -181,6 +186,91 @@ def handle_export(oauth, args) -> None:
     print("\nExported files:")
     for file_name, path in exported_files.items():
         print(f"  - {file_name}: {path}")
+
+
+def handle_populate_emails(oauth, args) -> None:
+    """Handle the --populate-emails command."""
+    print("\n" + "=" * 60)
+    print("Populating Student Emails")
+    print("=" * 60)
+
+    if not args.sheet_id:
+        print("Error: --sheet-id is required for --populate-emails.")
+        sys.exit(1)
+
+    sa_key_path = args.service_account_key or os.environ.get("GOOGLE_SERVICE_ACCOUNT_KEY")
+    if not sa_key_path:
+        print(
+            "Error: Google service account key required. "
+            "Use --service-account-key or set GOOGLE_SERVICE_ACCOUNT_KEY in .env."
+        )
+        sys.exit(1)
+    sa_key_path = os.path.expanduser(sa_key_path)
+
+    populator = EmailPopulator(verbose=args.verbose)
+
+    # Load MSR data from export directory or fresh API call
+    if args.export_dir:
+        print(f"\n  Loading data from export directory: {args.export_dir}")
+        entrylist, attendees = populator.load_msr_data_from_export(args.export_dir)
+    elif args.event_id:
+        print("\n  Fetching data from MSR API...")
+        if not oauth.has_valid_tokens():
+            print(ERR_NO_VALID_TOKENS)
+            sys.exit(1)
+        oauth.validate_connection()
+        client = create_client_from_oauth(oauth, organization_id=args.org_id)
+        entrylist, attendees = populator.load_msr_data_from_api(client, args.event_id)
+    else:
+        print(
+            "Error: Either --export-dir or --event-id is required for --populate-emails."
+        )
+        sys.exit(1)
+
+    # Build name -> email lookup filtered by run group
+    group_filter = args.group_filter
+    print(f"\n  Run group filter: '{group_filter}'")
+    email_lookup = NameMatcher.build_email_lookup(entrylist, attendees, group_filter)
+    print(f"  Found {len(email_lookup)} student(s) with emails in MSR data")
+
+    if not email_lookup:
+        print(
+            f"\n  Warning: No students found matching group filter '{group_filter}'."
+        )
+        print("  Check --group-filter against your event's run group names.")
+        return
+
+    # Dry run: show matches without writing
+    if args.dry_run:
+        print("\n  [DRY RUN] Matching preview (no changes written to Sheet):")
+        for name, email in sorted(email_lookup.items()):
+            print(f"    {name} -> {email}")
+        return
+
+    # Connect to Google Sheets and populate emails
+    sheets_client = GoogleSheetsClient(sa_key_path)
+    results = populator.populate_emails(
+        sheets_client=sheets_client,
+        sheet_id=args.sheet_id,
+        worksheet_name=args.worksheet,
+        name_column=args.name_column,
+        email_column=args.email_column,
+        email_lookup=email_lookup,
+    )
+
+    print("\n" + "=" * 60)
+    print("Results")
+    print("=" * 60)
+    print(f"  Total data rows:    {results['total_rows']}")
+    print(f"  Emails populated:   {results['matched']}")
+    print(f"  Already had email:  {results['already_filled']}")
+    print(f"  Skipped (no name):  {results['skipped']}")
+    print(f"  Unmatched names:    {len(results['unmatched'])}")
+
+    if results["unmatched"]:
+        print("\n  Unmatched names (require manual lookup):")
+        for item in results["unmatched"]:
+            print(f"    Row {item['row']}: {item['name']}")
 
 
 def handle_auth(oauth, args) -> None:
@@ -274,7 +364,7 @@ Examples:
     parser.add_argument(
         "--export-dir",
         type=str,
-        help="Directory containing exported CSV files (for --report)",
+        help="Directory containing exported CSV files (for --report and --populate-emails)",
     )
     parser.add_argument(
         "--report-file",
@@ -308,6 +398,50 @@ Examples:
         help="Custom name for export folder or report file (e.g., 'HPDE_TT_1_2025')",
     )
     parser.add_argument(
+        "--populate-emails",
+        action="store_true",
+        help="Populate student emails in a Google Sheet from MSR Novice run group data",
+    )
+    parser.add_argument(
+        "--sheet-id",
+        type=str,
+        help="Google Sheet ID (from the sheet URL) for --populate-emails",
+    )
+    parser.add_argument(
+        "--worksheet",
+        type=str,
+        help="Worksheet/tab name in the Google Sheet (default: first sheet)",
+    )
+    parser.add_argument(
+        "--name-column",
+        type=str,
+        default="name",
+        help="Column header or letter for student names (default: 'name')",
+    )
+    parser.add_argument(
+        "--email-column",
+        type=str,
+        default="email",
+        help="Column header or letter for email addresses (default: 'email')",
+    )
+    parser.add_argument(
+        "--group-filter",
+        type=str,
+        default="novice",
+        help="Run group substring filter for student lookup (default: 'novice')",
+    )
+    parser.add_argument(
+        "--service-account-key",
+        type=str,
+        help="Path to Google service account JSON key file "
+        "(default: GOOGLE_SERVICE_ACCOUNT_KEY env var)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview email matches without writing to the Sheet",
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -336,6 +470,8 @@ def main():
             handle_report(args)
         elif args.export:
             handle_export(oauth, args)
+        elif args.populate_emails:
+            handle_populate_emails(oauth, args)
         else:
             handle_full_flow(oauth, args)
 

@@ -448,16 +448,20 @@ class MSROAuth:
             # Step 2: Get authorization URL
             auth_url = self.get_authorization_url()
 
+            # Always print the URL so the user can copy/paste it if needed
+            print(f"\nAuthorization URL:\n\n  {auth_url}\n")
+
             # Open browser automatically if requested
             if auto_open_browser:
-                print("\nAttempting to open browser automatically...")
+                print("Attempting to open browser automatically...")
                 try:
                     webbrowser.open(auth_url)
+                    print("  Browser opened. If nothing appeared, copy the URL above.")
                 except Exception as e:
                     print(f"  Could not open browser automatically: {e}")
-                print("\nIf the browser does not open, check your default browser settings.")
+                    print("  Copy the URL above and open it in your browser manually.")
             else:
-                print("\nPlease complete authorization in your browser.")
+                print("Copy the URL above and open it in your browser.")
 
             # Step 3: Wait for callback with verifier
             verifier = self._wait_for_callback(server)

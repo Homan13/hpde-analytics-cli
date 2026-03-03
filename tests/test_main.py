@@ -247,6 +247,100 @@ class TestLoadEnvironment:
         assert "Loaded environment" in captured.out
 
 
+class TestPopulateEmailsParser:
+    """Tests for --populate-emails argument parsing."""
+
+    def test_parser_populate_emails_arg(self):
+        """Test --populate-emails flag."""
+        parser = create_parser()
+        args = parser.parse_args(["--populate-emails"])
+        assert args.populate_emails is True
+
+    def test_parser_sheet_id_arg(self):
+        """Test --sheet-id argument."""
+        parser = create_parser()
+        args = parser.parse_args(["--sheet-id", "abc123"])
+        assert args.sheet_id == "abc123"
+
+    def test_parser_worksheet_arg(self):
+        """Test --worksheet argument."""
+        parser = create_parser()
+        args = parser.parse_args(["--worksheet", "Form Responses 1"])
+        assert args.worksheet == "Form Responses 1"
+
+    def test_parser_name_column_default(self):
+        """Default --name-column should be 'name'."""
+        parser = create_parser()
+        args = parser.parse_args([])
+        assert args.name_column == "name"
+
+    def test_parser_email_column_default(self):
+        """Default --email-column should be 'email'."""
+        parser = create_parser()
+        args = parser.parse_args([])
+        assert args.email_column == "email"
+
+    def test_parser_group_filter_default(self):
+        """Default --group-filter should be 'novice'."""
+        parser = create_parser()
+        args = parser.parse_args([])
+        assert args.group_filter == "novice"
+
+    def test_parser_group_filter_custom(self):
+        """Custom --group-filter value should be stored."""
+        parser = create_parser()
+        args = parser.parse_args(["--group-filter", "beginner hpde"])
+        assert args.group_filter == "beginner hpde"
+
+    def test_parser_service_account_key_arg(self):
+        """Test --service-account-key argument."""
+        parser = create_parser()
+        args = parser.parse_args(["--service-account-key", "/path/to/key.json"])
+        assert args.service_account_key == "/path/to/key.json"
+
+    def test_parser_service_account_key_default(self):
+        """Default --service-account-key should be None."""
+        parser = create_parser()
+        args = parser.parse_args([])
+        assert args.service_account_key is None
+
+    def test_parser_dry_run_arg(self):
+        """Test --dry-run flag."""
+        parser = create_parser()
+        args = parser.parse_args(["--dry-run"])
+        assert args.dry_run is True
+
+    def test_parser_dry_run_default(self):
+        """Default --dry-run should be False."""
+        parser = create_parser()
+        args = parser.parse_args([])
+        assert args.dry_run is False
+
+    def test_parser_combined_populate_emails(self):
+        """Test full --populate-emails command with all arguments."""
+        parser = create_parser()
+        args = parser.parse_args(
+            [
+                "--populate-emails",
+                "--sheet-id", "abc123",
+                "--export-dir", "/path/to/export",
+                "--name-column", "Student Name",
+                "--email-column", "D",
+                "--group-filter", "novice hpde",
+                "--service-account-key", "/path/to/key.json",
+                "--verbose",
+            ]
+        )
+        assert args.populate_emails is True
+        assert args.sheet_id == "abc123"
+        assert args.export_dir == "/path/to/export"
+        assert args.name_column == "Student Name"
+        assert args.email_column == "D"
+        assert args.group_filter == "novice hpde"
+        assert args.service_account_key == "/path/to/key.json"
+        assert args.verbose is True
+
+
 class TestCLIIntegration:
     """Integration tests for CLI."""
 
