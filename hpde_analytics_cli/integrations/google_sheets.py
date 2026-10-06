@@ -9,6 +9,7 @@ from typing import Any, List, Optional, Tuple
 
 try:
     import gspread
+
     GSPREAD_AVAILABLE = True
 except ImportError:
     GSPREAD_AVAILABLE = False
