@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hpde-analytics-cli"
-version = "6.0.5"  # x-release-please-version
+version = "6.0.6"  # x-release-please-version
 description = "Data analysis and reporting tool for HPDE and Time Trials programs"
 readme = "README.md"
 license = {text = "MIT"}

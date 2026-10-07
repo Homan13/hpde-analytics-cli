@@ -22,27 +22,38 @@ jobs:
           python -m pip install --upgrade pip
           pip install build
 
-      - name: Verify pyproject version matches release tag
+      # The release tag is authoritative. .release-please-manifest.json is written by
+      # release-please in the same commit the tag points at, so the two disagreeing means
+      # the release itself is malformed - that is worth blocking on. pyproject.toml is a
+      # mirror, so a lag there is corrected for the build rather than failing the release:
+      # a stale mirror would otherwise strand a published tag with no PyPI artifact.
+      - name: Resolve and pin the build version
         run: |
           TAG_VERSION="${{ github.ref_name }}"
           TAG_VERSION="${TAG_VERSION#v}"
-          FILE_VERSION=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/^version = "([^"]+)".*/\1/')
-          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
-            echo "::error::Release tag v$TAG_VERSION does not match pyproject.toml version $FILE_VERSION."
-            echo "Building would produce a wheel labelled $FILE_VERSION, which PyPI would reject"
-            echo "as a duplicate of an already-published release."
-            echo ""
-            echo "Most likely cause: the release PR was generated before the"
-            echo "x-release-please-version annotation reached main, or before the most recent"
-            echo "push, and was merged without release-please regenerating it. Check that the"
-            echo "release PR's diff includes a pyproject.toml version bump before merging it."
-            echo ""
-            echo "To recover: set the pyproject.toml version to $TAG_VERSION on main so it"
-            echo "matches .release-please-manifest.json, then let the next release cut cleanly."
-            echo "Do not move the tag."
+          MANIFEST_VERSION=$(python -c \
+            "import json;print(json.load(open('.release-please-manifest.json'))['.'])")
+
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "::error::Release tag v$TAG_VERSION does not match" \
+                 ".release-please-manifest.json ($MANIFEST_VERSION). The release is" \
+                 "malformed - release-please writes both in the same commit. Not publishing."
             exit 1
           fi
-          echo "Building version $FILE_VERSION"
+
+          FILE_VERSION=$(grep -m1 '^version = ' pyproject.toml \
+            | sed -E 's/^version = "([^"]+)".*/\1/' | tr -d '\r')
+
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "::warning::pyproject.toml says $FILE_VERSION but the release tag is" \
+                 "$TAG_VERSION. Building $TAG_VERSION anyway. release-please should have" \
+                 "bumped pyproject.toml; check that the file still has LF line endings" \
+                 "(a CR inside a comment makes its TOML parser throw and skip the file)" \
+                 "and reconcile pyproject.toml on main. See CODE_REVIEW.md #11."
+            sed -i -E "s/^version = \"[^\"]+\"/version = \"$TAG_VERSION\"/" pyproject.toml
+          fi
+
+          echo "Building version $TAG_VERSION"
 
       - name: Build package
         run: python -m build

@@ -270,45 +270,81 @@ numbers) buys only a cosmetic improvement.
 
 **Standing rule:** never hand-edit a version anywhere. release-please owns all of them.
 
-**Postscript — v6.0.5 exposed a release-PR timing hazard (2026-10-07).**
+**Postscript — root cause: CRLF line endings in `pyproject.toml` (2026-10-07).**
 
-The v6.0.5 publish failed on the new guard: tag `v6.0.5`, `pyproject.toml` still `6.0.4`.
-The annotation was not at fault — running release-please 17.11.2's `Generic` updater
-locally against this exact file correctly rewrites the line to `6.0.5`. The cause was
-timing:
+Both the v6.0.5 and v6.0.6 publishes failed the version guard, tag and `pyproject.toml`
+disagreeing each time.
 
-| Event | Time (UTC) |
-| --- | --- |
-| Release PR #53 created | 2026-10-06 19:29:52 |
-| Annotation reaches `main` (`ad24a8a`) | 2026-10-07 12:25:07 |
-| PR #53 merged | 2026-10-07 12:28:36 |
+*A first diagnosis, recorded here because it was wrong and the correction matters.* The
+v6.0.5 failure was initially attributed to release PR #53 having been generated seventeen
+hours before the annotation reached `main` and merged three and a half minutes after it
+landed. The timeline was accurate but coincidental. v6.0.6 failed identically with no such
+timing overlap, which disproved it.
 
-The release PR was generated roughly seventeen hours before the annotation existed, so its
-diff never contained a `pyproject.toml` change, and it was merged three and a half minutes
-after the annotation landed — too soon for release-please to regenerate it. The tag
-therefore points at a tree whose `pyproject.toml` still said `6.0.4`.
+**The actual cause.** `pyproject.toml` is stored with CRLF line endings. release-please's
+Python strategy parses it with a strict TOML parser, which rejects carriage returns inside
+comments. Running release-please 17.11.2's updaters against the real file:
 
-**The guard did its job.** Without it the build would have produced a wheel labelled
-`6.0.4` and failed at the PyPI upload with a duplicate-file error, which is a far more
-confusing place to discover the problem.
+```
+real file (CRLF + annotation)  THREW: Control characters (codes < 0x1f and 0x7f) are not
+                                      allowed in comments ... at row 7, col 46
+annotation comment removed     THREW: ... at row 99, col 50   (the bandit `skips` comment)
+CRLF converted to LF           CHANGED -> version = "6.0.6"
+```
 
-**Resolution taken:** `pyproject.toml` set to `6.0.5` on `main` to match the manifest and
-the published tag. This is a one-time reconciliation of the lagging mirror to the
-authoritative value, not a version decision, and does not contradict the standing rule.
-The tag was deliberately **not** moved. v6.0.5 is a GitHub release with no PyPI artifact;
-the next release publishes normally. Acceptable here because the author is the only PyPI
-consumer and the 6.0.5 changelog contains documentation changes only.
+Row 7 column 46 is the `\r` terminating the version line. The parse throws, release-please
+logs a warning and skips the file, and the bump is silently lost. Removing the annotation
+does not help — any CRLF-terminated comment anywhere in the file triggers it.
 
-**Process note:** after pushing to `main`, let the Release Please workflow finish and
-confirm the release PR's diff includes a `pyproject.toml` bump before merging it. The
-guard's failure message now names this cause directly.
+This explains the whole history: `pyproject.toml` was never bumped by *any* release, which
+is why `publish.yml` carried a `sed` workaround from v6.0.3 onward. The
+`x-release-please-version` annotation was never the missing piece; the file was simply
+unparseable. Note that the `Generic` updater used by `extra-files` is line-based and
+*does* handle CRLF, but the Python strategy registers its own `PyProjectToml` updater for
+the same path, which takes precedence.
 
-**Unrelated observation:** `pyproject.toml`, `sonar-project.properties` and the workflow
-YAML files use CRLF line endings while the Python sources use LF, and there is no
-`.gitattributes`. This predates the review and caused nothing here — the updater handles
-CRLF correctly — but a `.gitattributes` with `* text=auto` would stop the inconsistency
-spreading. Deferred because normalizing would produce a whole-file diff on every affected
-file.
+**Fixes applied:**
+
+1. `pyproject.toml` converted to LF (99 CRLF pairs) and set to `6.0.6`. Verified
+   afterwards that both the native `PyProjectToml` updater and the `extra-files` `Generic`
+   updater now rewrite the version correctly.
+2. `.gitattributes` added pinning `pyproject.toml text eol=lf`, with the reason inline so
+   the constraint is not silently reverted by an editor.
+3. `publish.yml` restructured. The hard gate is now **tag vs
+   `.release-please-manifest.json`** — release-please writes both in the same commit, so
+   disagreement means a malformed release and is worth blocking. A `pyproject.toml` lag is
+   now a **warning** that pins the version for the build rather than a failure, because a
+   mirror file lagging should never strand a published tag with no PyPI artifact. That is
+   precisely what cost v6.0.5 and v6.0.6.
+
+**Releases v6.0.5 and v6.0.6 have GitHub releases but no PyPI artifact.** The tags were
+deliberately not moved; re-running their publish jobs would use the workflow file from
+their own tagged trees, which still contains the blocking guard. v6.0.7 is the first
+release expected to publish cleanly. Acceptable here because the author is the only PyPI
+consumer and both changelogs contain documentation and CI changes only.
+
+### 24. Mixed line endings across the repository
+
+- [ ] Open — low priority, deliberately deferred
+
+Twenty-five tracked files use CRLF while the rest use LF, with no `.gitattributes` to
+normalize them: all five workflow YAMLs, `.pre-commit-config.yaml`, `.github/dependabot.yml`,
+`release-please-config.json`, `sonar-project.properties`, `LICENSE`, six Python modules
+under `hpde_analytics_cli/`, and seven test modules.
+
+Only `pyproject.toml` caused an actual failure (item 11), and it is now pinned to LF.
+The rest are latent: YAML and Python parsers tolerate CRLF, so nothing is broken today.
+
+Fixing it is mechanical but touches every affected file in full:
+
+```bash
+printf '* text=auto eol=lf\n' >> .gitattributes
+git add --renormalize .
+git commit -m "style: normalize line endings to LF"
+```
+
+Kept out of the release fix so that change stayed reviewable. Worth doing as its own
+commit, ideally when no release PR is open.
 
 ### 12. `sonar-project.properties` Python versions are stale
 

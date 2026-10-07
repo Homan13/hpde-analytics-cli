@@ -1,0 +1,13 @@
+# pyproject.toml MUST use LF line endings.
+#
+# release-please's Python strategy parses it with a strict TOML parser that rejects
+# carriage returns inside comments ("Control characters (codes < 0x1f and 0x7f) are not
+# allowed in comments"). The parse throws, release-please logs a warning and skips the
+# file, and the version bump is silently lost. That is why pyproject.toml was never
+# bumped by any release before 2026-10-07, and why v6.0.5 and v6.0.6 failed to publish.
+#
+# See CODE_REVIEW.md #11 for the full diagnosis.
+pyproject.toml text eol=lf
+
+# Other tracked files still carry mixed endings; see CODE_REVIEW.md #24 for the
+# repo-wide renormalization, deliberately kept out of this rule to avoid a mass diff.

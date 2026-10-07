@@ -185,15 +185,17 @@ and issues another major bump. Repeated attempts to do this are what took the pr
 the 2.0.0 boundary and `CODE_REVIEW.md` #11. By strict semver this is about a 2.1.x
 codebase; 6.x was kept because PyPI numbers are permanent and resolvers prefer the highest.
 
-`publish.yml` fails the build if the release tag and `pyproject.toml` disagree, because a
-mismatch would produce a wheel PyPI rejects as a duplicate.
+**`pyproject.toml` must keep LF line endings.** release-please parses it with a strict TOML
+parser that throws on a carriage return inside a comment; the parse fails, the file is
+skipped, and the version bump is silently lost. This broke every release up to v6.0.6 and
+is why `publish.yml` once carried a `sed` workaround. `.gitattributes` now pins it, so do
+not override that. Full diagnosis in the postscript to `CODE_REVIEW.md` #11.
 
-**Before merging a release PR, check that its diff includes a `pyproject.toml` version
-bump.** release-please generates the PR from `main` as it stood at generation time and only
-regenerates it on a later workflow run, so a PR merged shortly after a push can be stale.
-That is what broke the v6.0.5 publish — see the postscript to `CODE_REVIEW.md` #11. If the
-guard trips, reconcile `pyproject.toml` on `main` to the manifest and let the next release
-cut cleanly; do not move the tag.
+`publish.yml` hard-fails only when the release tag disagrees with
+`.release-please-manifest.json`, since release-please writes both in the same commit and a
+mismatch means a malformed release. A lagging `pyproject.toml` is a warning that pins the
+version for the build instead — a mirror file must never strand a published tag with no
+PyPI artifact.
 
 Publishing to PyPI uses trusted publishing and fires on GitHub release `published`.
 `release-please-config.json` sets `bump-minor-pre-major` and `bump-patch-for-minor-pre-major`,
