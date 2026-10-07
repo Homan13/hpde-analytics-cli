@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.5](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.4...v6.0.5) (2026-10-07)
+
+
+### Documentation
+
+* add code review backlog and Claude Code repository guidance ([4c24a3e](https://github.com/Homan13/hpde-analytics-cli/commit/4c24a3e8ee6fe5dba2fbc4b4c0a313099a4c0e1d))
+
 ## [6.0.4](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.3...v6.0.4) (2026-03-03)
 
 
