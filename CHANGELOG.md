@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.6](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.5...v6.0.6) (2026-10-07)
+
+
+### Bug Fixes
+
+* reconcile pyproject version with release tag after stale release PR ([d85c1dd](https://github.com/Homan13/hpde-analytics-cli/commit/d85c1dd792815a5807819d76ffc8c42b5bce1ff9))
+
 ## [6.0.5](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.4...v6.0.5) (2026-10-07)
 
 
