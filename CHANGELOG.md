@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.7](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.6...v6.0.7) (2026-10-07)
+
+
+### Bug Fixes
+
+* convert pyproject.toml to LF so release-please can bump it ([a02b3c6](https://github.com/Homan13/hpde-analytics-cli/commit/a02b3c6858267eeb3123f66d49eef4e9ced1b0ef))
+
 ## [6.0.6](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.5...v6.0.6) (2026-10-07)
 
 
