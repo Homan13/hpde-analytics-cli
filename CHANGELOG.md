@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.8](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.7...v6.0.8) (2026-10-07)
+
+
+### Bug Fixes
+
+* resolve user paths from the working directory, not site-packages ([2badccf](https://github.com/Homan13/hpde-analytics-cli/commit/2badccf83cc759a0e824ae485657ecb53ab7b5fa))
+
 ## [6.0.7](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.6...v6.0.7) (2026-10-07)
 
 
