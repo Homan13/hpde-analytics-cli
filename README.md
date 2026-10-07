@@ -48,16 +48,25 @@ pip install hpde-analytics-cli
    This stores your credentials securely in your system's keyring (macOS Keychain, Windows Credential Locker, or Linux Secret Service).
 
    **Option B: Environment file (Fallback)**
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` and add your MotorsportsReg OAuth credentials:
+
+   Create a `.env` file in the directory you run the tool from:
    ```
    MSR_CONSUMER_KEY=your_consumer_key_here
    MSR_CONSUMER_SECRET=your_consumer_secret_here
    MSR_BASE_URL=https://api.motorsportreg.com
    MSR_CALLBACK_PORT=8089
    ```
+   (Working from a clone, `cp .env.example .env` gives you a starting point.)
+
+   Two locations are searched, in this order:
+
+   | Location | Purpose |
+   | --- | --- |
+   | `.env` in the working directory, or any parent | Per-project settings |
+   | `.env` in the user config directory (below) | Your defaults across all directories |
+
+   The project file wins where both set the same key; the user file supplies anything it
+   leaves out.
 
 2. Check credential status (optional):
    ```bash
@@ -152,6 +161,7 @@ hpde-analytics-cli/
 ├── hpde_analytics_cli/
 │   ├── __init__.py
 │   ├── main.py                   # CLI entry point
+│   ├── paths.py                  # Config, token and output path resolution
 │   ├── auth/
 │   │   ├── __init__.py
 │   │   ├── credentials.py        # Secure credential management
@@ -165,9 +175,34 @@ hpde-analytics-cli/
 │       ├── field_discovery.py    # API field enumeration
 │       └── report_generator.py   # Excel report generation
 ├── output/                       # Export and report output (not in version control)
-├── tokens/                       # OAuth access tokens (not in version control)
 └── tests/                        # Unit tests
 ```
+
+## File Locations
+
+Exports and reports are written relative to **the directory you run the command from**, so
+the tool behaves the same whether installed from PyPI or run from a clone. OAuth tokens go
+to a per-user config directory, so they survive upgrades and stay out of your project
+folders.
+
+| What | Location |
+| --- | --- |
+| Exports and reports | `./output/` in the current directory (override with `--output-dir`) |
+| Field inventory | `./output/field_inventory.json` (override with `--output`) |
+| OAuth access token | user config directory, below |
+| `.env` | current directory or any parent, then the user config directory |
+
+The user config directory is the native location for your platform:
+
+| Platform | Path |
+| --- | --- |
+| Linux | `~/.config/hpde-analytics-cli/` |
+| macOS | `~/Library/Application Support/hpde-analytics-cli/` |
+| Windows | `%LOCALAPPDATA%\hpde-analytics-cli\` |
+
+Set `HPDE_CONFIG_DIR` to override it. The token file is written readable only by you
+(mode `0600` on POSIX systems). A token left by version 6.0.7 or earlier is moved to the
+new location automatically on first run, so you will not need to re-authenticate.
 
 ## Export Structure
 
@@ -267,10 +302,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Security Notes
 
 **Important:**
-- Never commit `.env` or `tokens/` directory to version control
+- Never commit a `.env` file to version control
 - OAuth consumer secrets and access tokens must be kept confidential
 - The `.gitignore` file is configured to exclude these sensitive files automatically
 - Use `hpde-analytics-cli --configure` to store credentials securely in your system keyring
+- Access tokens live outside the project in the user config directory, written mode `0600`
+- Exported data contains registrant names and email addresses; `output/` is gitignored, but
+  take the same care with it that you would with any roster
 
 ## Support
 

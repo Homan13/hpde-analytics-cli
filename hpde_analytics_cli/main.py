@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
-from hpde_analytics_cli import __version__
+from hpde_analytics_cli import __version__, paths
 from hpde_analytics_cli.api.client import create_client_from_oauth
 from hpde_analytics_cli.auth.credentials import CredentialManager
 from hpde_analytics_cli.auth.oauth import MSROAuth, create_oauth_from_env
@@ -104,7 +104,7 @@ def handle_discover(oauth, args) -> None:
     client = create_client_from_oauth(oauth, organization_id=args.org_id)
     api_data = fetch_api_data(client, event_id=args.event_id, verbose=args.verbose)
 
-    output_path = Path(__file__).parent.parent / args.output
+    output_path = Path(args.output)
     run_field_discovery(api_data, output_path=str(output_path))
 
 
@@ -167,7 +167,7 @@ def handle_export(oauth, args) -> None:
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        output_dir = Path(__file__).parent.parent / "output"
+        output_dir = paths.default_output_dir()
 
     exporter = DataExporter(output_dir=str(output_dir), name=args.name)
     exported_files = exporter.export_all_data(
@@ -284,14 +284,19 @@ def handle_full_flow(oauth, args) -> None:
     client = create_client_from_oauth(oauth, organization_id=args.org_id)
     api_data = fetch_api_data(client, event_id=args.event_id, verbose=args.verbose)
 
-    output_path = Path(__file__).parent.parent / args.output
+    output_path = Path(args.output)
     run_field_discovery(api_data, output_path=str(output_path))
 
 
 def load_environment(verbose: bool = False) -> None:
-    """Load environment variables from .env file if it exists."""
-    env_path = Path(__file__).parent.parent / ".env"
-    if env_path.exists():
+    """
+    Load environment variables from .env files.
+
+    Loads the project .env (searched upward from the working directory) before the
+    per-user one. load_dotenv leaves already-set keys alone, so the project file wins and
+    the user file fills in whatever it omits.
+    """
+    for env_path in paths.find_env_files():
         load_dotenv(env_path)
         if verbose:
             print(f"Loaded environment from {env_path}")

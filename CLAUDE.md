@@ -155,10 +155,21 @@ OAuth *access* tokens are separate, stored as JSON on disk by `auth/oauth.py`, a
 automatically in `MSROAuth.__init__`. A 401 during `validate_connection` deletes the token
 file and forces re-auth.
 
-Several paths — the `.env` file, the default output directory, and the token file — are
-derived from `__file__` and so resolve into `site-packages` when the package is installed
-rather than run from a checkout. This is a known bug, catalogued as `CODE_REVIEW.md` #2.
-Keep it in mind before concluding that a config file "is not being read."
+### Path resolution lives in one module
+
+`paths.py` owns every user-facing path: the config directory, the token file, the default
+output directory, and `.env` discovery. **Never derive a path from `__file__`** — that
+resolves to `site-packages` for an installed package, which is how the `.env` file went
+unread, tokens were written where upgrades destroy them, and exports landed in a library
+directory (`CODE_REVIEW.md` #2). The single remaining `__file__` use is
+`paths.legacy_token_file()`, which deliberately reproduces the old broken location so a
+token left by an earlier version can be migrated.
+
+Output is relative to `Path.cwd()`; the token lives in the platform config directory via
+`platformdirs`, overridable with `HPDE_CONFIG_DIR`. Note that this is a no-op in a source
+checkout, where cwd and the old `parent.parent` are the same directory — so a path bug here
+will not reproduce locally while running from the repo. Test against a wheel install in a
+clean venv, from an unrelated working directory.
 
 ### Optional imports
 

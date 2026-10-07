@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from hpde_analytics_cli import paths
 from hpde_analytics_cli.main import (
     create_parser,
     handle_credential_commands,
@@ -211,35 +212,51 @@ class TestHandleCredentialCommands:
 class TestLoadEnvironment:
     """Tests for load_environment function."""
 
+    @pytest.fixture(autouse=True)
+    def isolated_env(self, tmp_path, monkeypatch):
+        """Run in an empty directory with the user config dir pointed somewhere empty."""
+        work = tmp_path / "work"
+        work.mkdir()
+        monkeypatch.chdir(work)
+        monkeypatch.setenv(paths.ENV_CONFIG_DIR, str(tmp_path / "config"))
+        return work
+
     @patch("hpde_analytics_cli.main.load_dotenv")
-    @patch("hpde_analytics_cli.main.Path")
-    def test_loads_env_when_exists(self, mock_path, mock_load_dotenv):
-        """Test that .env is loaded when it exists."""
-        mock_env_path = MagicMock()
-        mock_env_path.exists.return_value = True
-        mock_path.return_value.__truediv__.return_value.__truediv__.return_value = mock_env_path
+    def test_loads_env_from_working_directory(self, mock_load_dotenv, isolated_env):
+        """A .env beside the user, not beside the installed package, is what gets read."""
+        env_file = isolated_env / ".env"
+        env_file.write_text("MSR_BASE_URL=https://example.test\n")
 
         load_environment(verbose=False)
 
         mock_load_dotenv.assert_called_once()
+        assert mock_load_dotenv.call_args[0][0].resolve() == env_file.resolve()
 
     @patch("hpde_analytics_cli.main.load_dotenv")
-    def test_skips_when_no_env(self, mock_load_dotenv, tmp_path):
-        """Test that loading completes without error when .env doesn't exist."""
-        # The function checks if .env exists before calling load_dotenv
-        # This test verifies load_environment handles missing .env gracefully
-        # Note: The actual .env check depends on the installed package location,
-        # so we just verify the function doesn't raise errors
+    def test_loads_project_env_before_user_env(self, mock_load_dotenv, isolated_env, tmp_path):
+        """Project .env is loaded first so its keys win; the user file fills the rest."""
+        project_env = isolated_env / ".env"
+        project_env.write_text("MSR_BASE_URL=https://project.test\n")
+        config = tmp_path / "config"
+        config.mkdir()
+        user_env = config / ".env"
+        user_env.write_text("MSR_CALLBACK_PORT=9999\n")
+
         load_environment(verbose=False)
-        # Function should complete without raising an error
+
+        loaded = [call[0][0].resolve() for call in mock_load_dotenv.call_args_list]
+        assert loaded == [project_env.resolve(), user_env.resolve()]
 
     @patch("hpde_analytics_cli.main.load_dotenv")
-    @patch("hpde_analytics_cli.main.Path")
-    def test_verbose_output(self, mock_path, mock_load_dotenv, capsys):
+    def test_skips_when_no_env(self, mock_load_dotenv, isolated_env):
+        """No .env anywhere is not an error, and nothing is loaded."""
+        load_environment(verbose=False)
+        mock_load_dotenv.assert_not_called()
+
+    @patch("hpde_analytics_cli.main.load_dotenv")
+    def test_verbose_output(self, mock_load_dotenv, isolated_env, capsys):
         """Test verbose output when loading .env."""
-        mock_env_path = MagicMock()
-        mock_env_path.exists.return_value = True
-        mock_path.return_value.__truediv__.return_value.__truediv__.return_value = mock_env_path
+        (isolated_env / ".env").write_text("MSR_BASE_URL=https://example.test\n")
 
         load_environment(verbose=True)
 

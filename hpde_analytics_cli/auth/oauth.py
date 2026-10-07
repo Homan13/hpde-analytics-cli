@@ -19,6 +19,8 @@ from urllib.parse import parse_qs, urlparse
 
 from requests_oauthlib import OAuth1Session
 
+from hpde_analytics_cli import paths
+
 # Default callback port for local OAuth flow
 DEFAULT_CALLBACK_PORT = 8089
 
@@ -147,8 +149,12 @@ class MSROAuth:
 
         # Token storage
         if token_file is None:
-            project_root = Path(__file__).parent.parent.parent
-            self.token_file = project_root / "tokens" / "access_token.json"
+            self.token_file = paths.token_file()
+            # Only when using the default location: an explicit token_file (tests, or a
+            # caller managing its own state) must never have a stray file moved into it.
+            migrated_from = paths.migrate_legacy_token(self.token_file)
+            if migrated_from:
+                print(f"Moved access token from {migrated_from} to {self.token_file}")
         else:
             self.token_file = Path(token_file)
 
@@ -190,8 +196,9 @@ class MSROAuth:
         return False
 
     def _save_tokens(self) -> None:
-        """Save access tokens to file."""
+        """Save access tokens to file, readable only by the owner."""
         self.token_file.parent.mkdir(parents=True, exist_ok=True)
+        paths.restrict_permissions(self.token_file.parent)
 
         data = {
             "access_token": self.access_token,
@@ -202,6 +209,9 @@ class MSROAuth:
 
         with open(self.token_file, "w") as f:
             json.dump(data, f, indent=2)
+
+        # The file holds the access token and its secret; keep it off other accounts.
+        paths.restrict_permissions(self.token_file)
 
         print(f"Access tokens saved to {self.token_file}")
 

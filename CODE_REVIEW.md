@@ -59,7 +59,7 @@ pre-commit config — prevents this class of drift from recurring.
 
 ### 2. Installed-from-PyPI paths resolve into `site-packages`
 
-- [ ] Open
+- [x] **Fixed 2026-10-07**
 
 **Locations:**
 
@@ -81,19 +81,43 @@ Consequences on the `pip install hpde-analytics-cli` path the README recommends 
   upgrade or reinstall, and land in a shared system directory if installed outside a venv.
 - Exports land in `site-packages/output/`, where they will not be found.
 
-**Fix:**
+**Fixed 2026-10-07.** All five call sites now go through a new `hpde_analytics_cli/paths.py`,
+the single owner of user-facing path resolution. No path outside that module derives from
+`__file__`, and the one use inside it is the deliberate lookup of the legacy token location.
 
-- `.env` → `Path.cwd() / ".env"`, or `dotenv.find_dotenv()` to walk up from cwd.
-- Output defaults → `Path.cwd() / "output"`.
-- Token file → a per-user config dir, e.g. `~/.config/hpde-analytics-cli/` via
-  `platformdirs.user_config_dir()`, or hand-rolled to avoid the extra dependency.
-  Migrate an existing token file on first run if one is found at the old location.
+| Path | Now resolves to |
+| --- | --- |
+| Exports, reports, field inventory | `Path.cwd() / "output"` |
+| OAuth access token | `<user config dir>/access_token.json` |
+| `.env` | `find_dotenv(usecwd=True)`, then `<user config dir>/.env` |
 
-**Also:** `.env.example` is not included in the wheel, so the README's
-`cp .env.example .env` step only works from a clone. Either add it to the sdist/wheel
-via `MANIFEST.in` / `package-data`, or have `--configure` offer to write a starter `.env`.
+The user config directory comes from `platformdirs` (added as a runtime dependency), giving
+the native location per platform, overridable with `HPDE_CONFIG_DIR`. A hand-rolled
+`sys.platform` branch was considered and rejected: the project claims OS independence and
+`keyring` already behaves natively per platform, so the macOS and Windows conventions are
+worth getting from a maintained library rather than maintaining here.
 
-**UI-relevant.** A UI build will be a separate install and will hit all four of these.
+`.env` files load project-first, then user. `load_dotenv` does not overwrite keys that are
+already set, so that ordering gives a project-local file precedence while the user file
+supplies whatever it omits — layered config for free, without a precedence flag.
+
+**Notable:** this is a no-op for a source checkout, where `Path.cwd()` and
+`Path(__file__).parent.parent` are the same directory. Only the broken cases change.
+
+**Migration:** `paths.migrate_legacy_token()` runs on startup, but only when the default
+location is in use — an explicitly supplied `token_file` (tests, or a caller managing its
+own state) must never have a stray file moved into it. Verified end to end: a mode-0644
+token at the legacy path is moved, re-moded to 0600, the original removed, and the token
+loads normally.
+
+**Verified against a real wheel install** in a clean venv, run from an unrelated directory:
+config, token, output and `.env` paths all resolve outside `site-packages`, and a `.env` in
+the working directory is read and applied.
+
+**Still open:** `.env.example` is not included in the wheel, so `cp .env.example .env` only
+works from a clone. The README no longer instructs that as the primary step — it now
+describes creating the file directly — so this is cosmetic. Worth adding to the sdist via
+`MANIFEST.in`, or having `--configure` offer to write a starter `.env`.
 
 ### 3. `--report` requires MSR credentials it never uses
 
@@ -184,15 +208,23 @@ extended query set flags.
 
 ### 8. Token file written with world-readable permissions
 
-- [ ] Open
+- [x] **Fixed 2026-10-07** (with item 2)
 
-**Location:** `auth/oauth.py:192-206` (`_save_tokens`)
+**Location:** `auth/oauth.py` `_save_tokens`
 
-**Problem:** Plain `open(..., "w")` leaves the file at 0644 after umask. The file holds
-the OAuth access token and token secret.
+**Problem:** Plain `open(..., "w")` left the file at 0644 after umask. The file holds the
+OAuth access token and token secret.
 
-**Fix:** `os.chmod(self.token_file, 0o600)` after writing, and `0o700` on the containing
-directory when it is created.
+**Fixed** alongside item 2, since moving the token to a new location is exactly the moment
+to set its mode — relocating a secret to a per-user directory while leaving it
+world-readable would have been a strange place to stop. `_save_tokens` now calls
+`paths.restrict_permissions()` on both the file (0600) and its directory (0700), and
+`migrate_legacy_token()` applies the same mode to anything it moves. The helper swallows
+`OSError` because POSIX modes do not map onto Windows ACLs and a failure there should not
+break an otherwise working auth flow.
+
+Covered by `tests/test_paths.py::TestRestrictPermissions` and
+`TestMigrateLegacyToken::test_migrated_token_is_owner_only`, both skipped on Windows.
 
 ### 9. Callback wait can hang for ~50 minutes
 
