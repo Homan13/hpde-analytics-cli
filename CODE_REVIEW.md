@@ -270,6 +270,46 @@ numbers) buys only a cosmetic improvement.
 
 **Standing rule:** never hand-edit a version anywhere. release-please owns all of them.
 
+**Postscript — v6.0.5 exposed a release-PR timing hazard (2026-10-07).**
+
+The v6.0.5 publish failed on the new guard: tag `v6.0.5`, `pyproject.toml` still `6.0.4`.
+The annotation was not at fault — running release-please 17.11.2's `Generic` updater
+locally against this exact file correctly rewrites the line to `6.0.5`. The cause was
+timing:
+
+| Event | Time (UTC) |
+| --- | --- |
+| Release PR #53 created | 2026-10-06 19:29:52 |
+| Annotation reaches `main` (`ad24a8a`) | 2026-10-07 12:25:07 |
+| PR #53 merged | 2026-10-07 12:28:36 |
+
+The release PR was generated roughly seventeen hours before the annotation existed, so its
+diff never contained a `pyproject.toml` change, and it was merged three and a half minutes
+after the annotation landed — too soon for release-please to regenerate it. The tag
+therefore points at a tree whose `pyproject.toml` still said `6.0.4`.
+
+**The guard did its job.** Without it the build would have produced a wheel labelled
+`6.0.4` and failed at the PyPI upload with a duplicate-file error, which is a far more
+confusing place to discover the problem.
+
+**Resolution taken:** `pyproject.toml` set to `6.0.5` on `main` to match the manifest and
+the published tag. This is a one-time reconciliation of the lagging mirror to the
+authoritative value, not a version decision, and does not contradict the standing rule.
+The tag was deliberately **not** moved. v6.0.5 is a GitHub release with no PyPI artifact;
+the next release publishes normally. Acceptable here because the author is the only PyPI
+consumer and the 6.0.5 changelog contains documentation changes only.
+
+**Process note:** after pushing to `main`, let the Release Please workflow finish and
+confirm the release PR's diff includes a `pyproject.toml` bump before merging it. The
+guard's failure message now names this cause directly.
+
+**Unrelated observation:** `pyproject.toml`, `sonar-project.properties` and the workflow
+YAML files use CRLF line endings while the Python sources use LF, and there is no
+`.gitattributes`. This predates the review and caused nothing here — the updater handles
+CRLF correctly — but a `.gitattributes` with `* text=auto` would stop the inconsistency
+spreading. Deferred because normalizing would produce a whole-file diff on every affected
+file.
+
 ### 12. `sonar-project.properties` Python versions are stale
 
 - [x] **Fixed 2026-10-06**

@@ -28,8 +28,18 @@ jobs:
           TAG_VERSION="${TAG_VERSION#v}"
           FILE_VERSION=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/^version = "([^"]+)".*/\1/')
           if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
-            echo "::error::Release tag v$TAG_VERSION does not match pyproject.toml version $FILE_VERSION"
-            echo "release-please should have bumped pyproject.toml via the x-release-please-version annotation."
+            echo "::error::Release tag v$TAG_VERSION does not match pyproject.toml version $FILE_VERSION."
+            echo "Building would produce a wheel labelled $FILE_VERSION, which PyPI would reject"
+            echo "as a duplicate of an already-published release."
+            echo ""
+            echo "Most likely cause: the release PR was generated before the"
+            echo "x-release-please-version annotation reached main, or before the most recent"
+            echo "push, and was merged without release-please regenerating it. Check that the"
+            echo "release PR's diff includes a pyproject.toml version bump before merging it."
+            echo ""
+            echo "To recover: set the pyproject.toml version to $TAG_VERSION on main so it"
+            echo "matches .release-please-manifest.json, then let the next release cut cleanly."
+            echo "Do not move the tag."
             exit 1
           fi
           echo "Building version $FILE_VERSION"
