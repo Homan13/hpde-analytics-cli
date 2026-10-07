@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
+from hpde_analytics_cli import __version__
 from hpde_analytics_cli.api.client import create_client_from_oauth
 from hpde_analytics_cli.auth.credentials import CredentialManager
 from hpde_analytics_cli.auth.oauth import MSROAuth, create_oauth_from_env
@@ -327,6 +328,12 @@ Examples:
         """,
     )
 
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show the installed version and exit",
+    )
     parser.add_argument(
         "--configure",
         action="store_true",

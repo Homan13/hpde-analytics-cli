@@ -22,12 +22,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install build
 
-      - name: Set version from release tag
+      - name: Verify pyproject version matches release tag
         run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
-          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
-          echo "Building version $VERSION"
+          TAG_VERSION="${{ github.ref_name }}"
+          TAG_VERSION="${TAG_VERSION#v}"
+          FILE_VERSION=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/^version = "([^"]+)".*/\1/')
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "::error::Release tag v$TAG_VERSION does not match pyproject.toml version $FILE_VERSION"
+            echo "release-please should have bumped pyproject.toml via the x-release-please-version annotation."
+            exit 1
+          fi
+          echo "Building version $FILE_VERSION"
 
       - name: Build package
         run: python -m build

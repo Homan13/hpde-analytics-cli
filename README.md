@@ -236,7 +236,19 @@ This project uses [Semantic Versioning (SemVer)](https://semver.org/):
 - **MINOR** version for new functionality in a backward compatible manner
 - **PATCH** version for backward compatible bug fixes
 
-**Current Version:** 2.0.0
+Releases are automated by [release-please](https://github.com/googleapis/release-please)
+from [Conventional Commit](https://www.conventionalcommits.org/) messages on `main`.
+Version numbers are owned by that automation and should never be edited by hand.
+
+To see the version you have installed:
+
+```bash
+hpde-analytics-cli --version
+```
+
+For the current release and full history, see
+[Releases](https://github.com/Homan13/hpde-analytics-cli/releases) and
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Authors
 

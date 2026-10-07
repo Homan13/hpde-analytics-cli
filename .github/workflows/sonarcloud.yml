@@ -10,6 +10,13 @@ jobs:
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
+    # SONAR_TOKEN is unavailable to Dependabot-authored PRs (they read from the
+    # separate Dependabot secret store) and to PRs from forks. Skip the job in
+    # those cases rather than failing it with an opaque scanner error.
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -29,6 +36,42 @@ jobs:
       - name: Run tests with coverage
         run: |
           pytest tests/ -v --cov=hpde_analytics_cli --cov-report=xml --cov-report=term-missing
+
+      # The scanner reports a bare "HTTP 403 ... check SONAR_TOKEN" and exits, which
+      # reads like an analysis failure. Check the credential up front and say plainly
+      # which of the two problems it is.
+      - name: Verify SONAR_TOKEN is usable
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::SONAR_TOKEN is empty or unset. Add it under" \
+                 "Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          http_code=$(curl -sS -o /tmp/sonar_auth.json -w '%{http_code}' \
+            -H "Authorization: Bearer $SONAR_TOKEN" \
+            https://sonarcloud.io/api/authentication/validate || echo "000")
+
+          if [ "$http_code" = "200" ] \
+             && grep -Eq '"valid"[[:space:]]*:[[:space:]]*true' /tmp/sonar_auth.json; then
+            echo "SONAR_TOKEN accepted by SonarCloud."
+            exit 0
+          fi
+
+          if [ "$http_code" = "401" ] || [ "$http_code" = "403" ] \
+             || grep -Eq '"valid"[[:space:]]*:[[:space:]]*false' /tmp/sonar_auth.json; then
+            echo "::error::SonarCloud rejected SONAR_TOKEN (HTTP $http_code). The secret is" \
+                 "set but not valid - expired, revoked, or no longer permitted on" \
+                 "organization 'homan13'. Rotate it at" \
+                 "https://sonarcloud.io/account/security and update the repository secret."
+            exit 1
+          fi
+
+          # Anything else (network blip, 5xx) is not evidence against the token.
+          # Warn and let the scanner itself be the authority.
+          echo "::warning::Could not verify SONAR_TOKEN (HTTP $http_code). Continuing to scan."
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6

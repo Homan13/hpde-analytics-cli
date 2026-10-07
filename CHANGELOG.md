@@ -53,6 +53,33 @@
 * Sync pyproject.toml version and fix Release Please config ([0f5eaac](https://github.com/Homan13/hpde-analytics-cli/commit/0f5eaac50829ebf99b7a7d73916220f3aed8e4c2))
 * Trigger PyPI publish on both created and published releases ([da9fa52](https://github.com/Homan13/hpde-analytics-cli/commit/da9fa52467ea572bd05fd2707fe28258c56e8ac5))
 
+---
+
+> ### Note on versions 3.0.0 through 6.0.0
+>
+> There is no 3.x, 4.x, or 5.x entry below, and the jump from 2.0.0 to 6.0.0 does not
+> reflect four rounds of breaking changes. Those major versions were artifacts of the
+> release automation, not real releases.
+>
+> One genuine breaking change was made in this period — dropping Python 3.8 in v2.0.0.
+> It was then committed a second time, producing v3.0.0. Each subsequent attempt to
+> correct the version by hand-editing `.release-please-manifest.json` failed for the same
+> reason: release-please derives the next version from the Conventional Commit history
+> since the last release tag, and editing the manifest backwards does not remove the
+> breaking-change commits from that range. Every reset attempt re-detected the same
+> breaking change and issued another major bump, producing 4.0.0, 5.0.0 and finally
+> 6.0.0. The duplicated "Python 3.8 reached end-of-life" line in the 6.0.0 entry above is
+> the visible symptom.
+>
+> By strict semver this project would be at roughly 2.1.x. The 6.x line was kept because
+> PyPI version numbers are permanent and resolvers always prefer the highest version, so
+> renumbering downward would strand the published releases rather than tidy them.
+>
+> Versions are now owned entirely by release-please and must not be edited by hand.
+> `pyproject.toml` carries an `x-release-please-version` annotation so the automation can
+> update it, and `__version__` is read from installed package metadata rather than
+> hardcoded.
+
 ## [2.0.0](https://github.com/Homan13/hpde-analytics-cli/compare/v1.0.0...v2.0.0) (2026-01-27)
 
 

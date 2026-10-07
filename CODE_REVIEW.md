@@ -224,46 +224,59 @@ mismatch.
 
 ### 11. Version is declared in five places with five different values
 
-- [ ] Open
+- [x] **Fixed 2026-10-06**
 
-| Source | Value at review time |
-| --- | --- |
-| `.release-please-manifest.json` | 6.0.4 (authoritative) |
-| `pyproject.toml:8` | 6.0.1 |
-| `hpde_analytics_cli/__init__.py:3` | 1.0.0 |
-| `README.md` "Current Version" | 2.0.0 |
-| `sonar-project.properties` | 0.1.0 |
+| Source | Was | Now |
+| --- | --- | --- |
+| `.release-please-manifest.json` | 6.0.4 (authoritative) | unchanged |
+| `pyproject.toml:8` | 6.0.1 | 6.0.4, annotated for release-please |
+| `hpde_analytics_cli/__init__.py:3` | 1.0.0 | read from installed metadata |
+| `README.md` "Current Version" | 2.0.0 | removed; links to Releases |
+| `sonar-project.properties` | 0.1.0 | removed |
 
 **Root cause for `pyproject.toml`:** release-please's `generic` extra-file updater needs
 an `# x-release-please-version` annotation comment on the line it should bump. Without it
-the file is skipped — which is why `publish.yml` carries a `sed` workaround.
+the file was skipped — which is why `publish.yml` carried a `sed` workaround.
 
-**Fix:**
+**Decision on the version line itself.** By strict semver this project is at roughly
+2.1.x: v3.0.0 through v6.0.0 were artifacts of release automation, not real breaking
+changes. Each hand-edit of `.release-please-manifest.json` back to 2.0.0 failed because
+release-please derives the next version from Conventional Commit history since the last
+release tag — the breaking-change commits stayed in range and were re-detected, issuing
+another major each time.
 
-1. Annotate the version line in `pyproject.toml`:
+The 6.x line was deliberately kept rather than renumbered downward. PyPI version numbers
+are permanent and resolvers prefer the highest version, so publishing 2.1.0 would leave
+`pip install hpde-analytics-cli` resolving to 6.0.4 and strand the new release. Yanking
+6.0.0-6.0.4 was considered and rejected: yanking signals a broken release, and the cost
+(rewriting 7 tags, 7 GitHub releases and the changelog, permanently burning those version
+numbers) buys only a cosmetic improvement.
+
+**Changes applied:**
+
+1. `pyproject.toml` version annotated and synced to 6.0.4:
    ```toml
    version = "6.0.4"  # x-release-please-version
    ```
-   Then drop the `sed` step from `publish.yml`.
-2. Derive `__version__` from installed metadata instead of hardcoding it:
-   ```python
-   from importlib.metadata import version
+2. `publish.yml`'s `sed` step replaced with a guard that fails the build if the release
+   tag and `pyproject.toml` disagree — so a future release-please misconfiguration
+   surfaces as a failed publish instead of silently shipping a wrong version.
+3. `__init__.py` reads `__version__` via `importlib.metadata.version()`, falling back to
+   `0.0.0+unknown` when run from an uninstalled source tree.
+4. `README.md` version line replaced with the release process and a Releases link.
+5. `sonar.projectVersion` removed from `sonar-project.properties`.
+6. `--version` flag added to the CLI (`main.py`).
+7. `CHANGELOG.md` carries a note at the 2.0.0 / 6.0.0 boundary explaining the gap.
 
-   __version__ = version("hpde-analytics-cli")
-   ```
-3. Remove the "Current Version" line from `README.md`; link to the Releases page instead.
-4. Drop `sonar.projectVersion` from `sonar-project.properties` (SonarCloud does not
-   require it) or wire it to the manifest.
-5. Add a `--version` flag to the CLI, which it currently lacks.
+**Standing rule:** never hand-edit a version anywhere. release-please owns all of them.
 
 ### 12. `sonar-project.properties` Python versions are stale
 
-- [ ] Open
+- [x] **Fixed 2026-10-06**
 
-**Problem:** Declares `sonar.python.version=3.8,3.9,3.10,3.11,3.12`. 3.8 was dropped in
-v6.0.0; 3.13 and 3.14 are in the CI test matrix but missing here.
-
-**Fix:** `sonar.python.version=3.9,3.10,3.11,3.12,3.13,3.14`
+Declared `sonar.python.version=3.8,3.9,3.10,3.11,3.12`. 3.8 was dropped in v2.0.0;
+3.13 and 3.14 are in the CI test matrix but were missing here. Now
+`3.9,3.10,3.11,3.12,3.13,3.14`, matching the `ci.yml` matrix and `requires-python`.
 
 ### 13. `.coverage` is tracked in git despite being gitignored
 
@@ -435,6 +448,84 @@ needs a real export from a real event to author against; do not write them specu
 exists. A profile system with exactly one valid profile in it is worse than the hardcoded
 version — it adds indirection without adding capability. Trigger Stage 1 on a concrete
 second program, not on the idea of one.
+
+---
+
+## Addendum — CI infrastructure
+
+Added 2026-10-06 after investigating a reported Actions failure. Numbered 23 to keep the
+existing item numbers stable; priority is **P1**.
+
+### 23. SonarCloud has been failing since March 2026 — rejected API token
+
+- [ ] Open — **root cause confirmed; fix requires rotating the token**
+
+**Evidence.** Run history for the `SonarCloud` workflow:
+
+| Runs | Dates | Result |
+| --- | --- | --- |
+| …#57 | through 2026-03-03 | success |
+| #58-#64 | 2026-03-30 onward | failure, every run |
+
+The failing step is `SonarCloud Scan` itself, not a quality gate — checkout, dependency
+install, and the pytest coverage run all succeed first.
+
+**This is not a code problem.** `main` sat unchanged at `7dd9c5e` from 2026-03-03 to
+2026-10-06, so the last successful run and the first failing run analysed byte-identical
+source. The pinned action is also unchanged: `sonarqube-scan-action@v6` resolves to
+v6.0.0, released 2025-09-18, with no v6.x since — the floating tag never moved. Repository
+unchanged plus action unchanged plus failure means the cause is SonarCloud-side state.
+
+**Root cause, from the scan step's log:**
+
+```
+19:30:35.925 INFO  Communicating with SonarQube Cloud
+19:30:36.432 ERROR Failed to query JRE metadata:
+  GET https://api.sonarcloud.io/analysis/jres?os=linux&arch=x86_64 failed with HTTP 403.
+  Please check the property sonar.token or the environment variable SONAR_TOKEN.
+```
+
+The scanner is rejected on its first authenticated call — before downloading its JRE, and
+long before it reads any source. The credential is the whole problem. Nothing about code
+quality, coverage, or the quality gate is involved.
+
+A second cause compounds it: runs #58-#62 are all Dependabot PRs, which read from a
+separate secret store and never receive repository secrets. Those would fail regardless of
+the token's state.
+
+**Changes applied** (neither fixes the root cause; both make the next failure legible):
+
+1. Job-level `if` skips analysis for Dependabot-authored PRs and for PRs from forks rather
+   than failing them. Resolves the #58-#62 class outright.
+2. A `Verify SONAR_TOKEN is usable` preflight step that calls
+   `https://sonarcloud.io/api/authentication/validate` and distinguishes *missing secret*
+   from *rejected credential*, naming the rotation URL. It fails only on a definitive
+   rejection; network errors and 5xx produce a warning and let the scan proceed, so the
+   check cannot introduce flakiness of its own.
+
+   Verified against the live endpoint: an invalid token returns HTTP **200** with
+   `{"valid":false}`, not 401/403, which is why the check tests the body as well as the
+   status code.
+
+**Rejected change.** `SONAR_HOST_URL: https://sonarcloud.io` was added and then removed.
+The log line `Communicating with SonarQube Cloud` comes from a run with no such variable
+set, proving `sonarqube-scan-action@v6` already resolves SonarCloud on its own. Setting it
+would have been untested configuration added on a disproven hypothesis.
+
+**To finish this — requires SonarCloud and repository settings access:**
+
+- Rotate the token at <https://sonarcloud.io/account/security> and update the `SONAR_TOKEN`
+  secret under **Settings → Secrets and variables → Actions**. A 403 here means expired,
+  revoked, or no longer permitted on the organization; tokens do not announce expiry.
+- While there, confirm the project `Homan13_hpde-analytics-cli` still exists under
+  organization `homan13`, and that **Administration → Analysis Method → Automatic Analysis**
+  is **OFF** — it conflicts with CI-based analysis and fails the scan the same way.
+- Re-run. The preflight now reports which of the two it is.
+
+**Deferred:** Dependabot has an open PR bumping this action v6 → v8. Resolve the token
+question first — upgrading the action while the credential is broken only adds a variable.
+Note also that `@v6` is a floating major tag; pinning to a full version or a commit SHA
+would remove a class of silent breakage.
 
 ---
 

@@ -173,10 +173,21 @@ Versioning is driven by `release-please` from **conventional commit messages** o
 (`fix:` → patch, `feat:` → minor, `!` or `BREAKING CHANGE:` → major). Non-conforming
 commit subjects are skipped in the changelog and will not trigger a release.
 
-`.release-please-manifest.json` is the authoritative version. `pyproject.toml` is currently
-*not* auto-bumped — `publish.yml` patches it with `sed` from the release tag at build time,
-so the committed value lags. `__init__.py:__version__` and the README version line are
-hand-maintained and stale. See `CODE_REVIEW.md` #11 before trusting any version string in
-the repo.
+**Never hand-edit a version string anywhere in this repo.** `.release-please-manifest.json`
+is authoritative; `pyproject.toml` carries an `# x-release-please-version` annotation so
+the automation updates it; `__init__.py` reads `__version__` from installed package
+metadata. Nothing else states a version.
+
+This rule is not stylistic. Editing the manifest backwards does *not* remove
+breaking-change commits from the range release-please computes over, so it re-detects them
+and issues another major bump. Repeated attempts to do this are what took the project from
+2.0.0 to 6.0.0 with no real breaking changes in between — see the note in `CHANGELOG.md` at
+the 2.0.0 boundary and `CODE_REVIEW.md` #11. By strict semver this is about a 2.1.x
+codebase; 6.x was kept because PyPI numbers are permanent and resolvers prefer the highest.
+
+`publish.yml` fails the build if the release tag and `pyproject.toml` disagree. If that
+guard trips, the fix is in the release-please configuration, not in `pyproject.toml`.
 
 Publishing to PyPI uses trusted publishing and fires on GitHub release `published`.
+`release-please-config.json` sets `bump-minor-pre-major` and `bump-patch-for-minor-pre-major`,
+both of which are **inert** above 1.0.0 and have no effect on this project.
