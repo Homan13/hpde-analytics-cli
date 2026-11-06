@@ -39,11 +39,18 @@ jobs:
 
   test:
     name: Test (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        runner: [ubuntu-latest]
+        include:
+          # actions/python-versions has no 3.9 build for Ubuntu 26.04, which
+          # ubuntu-latest became on 2026-11-01. Pin this leg to 24.04 for as long as
+          # pyproject keeps requires-python = ">=3.9"; drop it when 3.9 support goes.
+          - python-version: "3.9"
+            runner: ubuntu-24.04
 
     steps:
       - name: Checkout code
