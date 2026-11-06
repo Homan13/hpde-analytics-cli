@@ -10,6 +10,17 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
+#: Endpoints the report cannot be generated without. ``report_generator`` reads
+#: entrylist.csv and attendees.csv by hardcoded filename, so an export missing either
+#: one only fails later, as a FileNotFoundError at a distance. assignments is absent from
+#: this set deliberately: ``_build_tire_lookup`` checks for the file and degrades to a
+#: blank tire brand, so a failure there costs one column rather than the whole report.
+REQUIRED_ENDPOINTS = ("raw_entrylist", "raw_attendees")
+
+
+class ExportError(Exception):
+    """Raised when an export completes without data the report requires."""
+
 
 class DataExporter:
     """Exports MSR API data to files for review."""
@@ -25,6 +36,8 @@ class DataExporter:
         self.output_dir = output_dir
         self.export_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.custom_name = name
+        #: endpoint name -> error text, for endpoints that failed during this export
+        self.failures: Dict[str, str] = {}
 
     def _ensure_dir(self, path: str) -> None:
         """Ensure directory exists."""
@@ -204,8 +217,11 @@ class DataExporter:
 
             return data
         except Exception as e:
-            if verbose:
-                print(f"    [ERROR] {e}")
+            # Record the failure so export_all_data can report it and fail the run if
+            # this endpoint was required. Printed unconditionally: an endpoint that did
+            # not export is not a progress message.
+            self.failures[endpoint_name] = str(e)
+            print(f"    [ERROR] {endpoint_name}: {e}")
             return None
 
     def _fetch_raw_data(
@@ -374,6 +390,7 @@ class DataExporter:
             # Create summary file
             if verbose:
                 print("  Creating export summary...")
+            missing_required = sorted(set(REQUIRED_ENDPOINTS) & self.failures.keys())
             summary = {
                 "export_timestamp": self.export_timestamp,
                 "event_id": event_id,
@@ -381,6 +398,8 @@ class DataExporter:
                 "files_exported": list(exported_files.keys()),
                 "export_directory": export_subdir,
                 "raw_data_directory": raw_data_subdir,
+                "failed_endpoints": dict(self.failures),
+                "missing_required_endpoints": missing_required,
             }
             exported_files["summary"] = self.export_json(
                 summary, "export_summary", include_timestamp=False
@@ -390,5 +409,16 @@ class DataExporter:
 
         finally:
             self.output_dir = original_output_dir
+
+        # The summary is written first, so a failed export still leaves a record on disk
+        # explaining why. Raising here is what stops "Export Complete" from being printed
+        # over an export the report cannot consume.
+        if missing_required:
+            raise ExportError(
+                "Export is missing data the report requires: "
+                + ", ".join(missing_required)
+                + ". Details in "
+                + exported_files["summary"]
+            )
 
         return exported_files

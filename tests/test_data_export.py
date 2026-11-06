@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from hpde_analytics_cli.utils.data_export import DataExporter
+from hpde_analytics_cli.utils.data_export import DataExporter, ExportError
 
 
 class TestDataExporter:
@@ -326,3 +326,80 @@ class TestDataExporterExportAllData:
         assert summary["organization_id"] == "test-org-id"
         assert "export_timestamp" in summary
         assert "files_exported" in summary
+
+    # --- Failure reporting (previously: every failure was swallowed and the export
+    # --- printed "Export Complete" and exited 0, leaving --report to die later with a
+    # --- FileNotFoundError at a distance).
+
+    @pytest.mark.parametrize("endpoint", ["get_event_entrylist", "get_event_attendees"])
+    def test_failed_required_endpoint_raises(self, temp_dir, mock_client, endpoint):
+        """entrylist and attendees are what the report reads; losing either is fatal."""
+        from hpde_analytics_cli.api.client import APIError
+
+        getattr(mock_client, endpoint).side_effect = APIError("upstream exploded")
+        exporter = DataExporter(output_dir=temp_dir)
+
+        with pytest.raises(ExportError) as exc_info:
+            exporter.export_all_data(mock_client, "event-123")
+
+        assert "missing data the report requires" in str(exc_info.value)
+
+    def test_failed_required_endpoint_still_writes_summary(self, temp_dir, mock_client):
+        """A failed export leaves a summary on disk explaining why."""
+        from hpde_analytics_cli.api.client import APIError
+
+        mock_client.get_event_entrylist.side_effect = APIError("upstream exploded")
+        exporter = DataExporter(output_dir=temp_dir)
+
+        with pytest.raises(ExportError):
+            exporter.export_all_data(mock_client, "event-123")
+
+        export_dir = os.path.join(temp_dir, os.listdir(temp_dir)[0])
+        with open(os.path.join(export_dir, "export_summary.json"), "r") as f:
+            summary = json.load(f)
+
+        assert summary["missing_required_endpoints"] == ["raw_entrylist"]
+        assert "upstream exploded" in summary["failed_endpoints"]["raw_entrylist"]
+
+    def test_failed_optional_endpoint_does_not_raise(self, temp_dir, mock_client):
+        """
+        assignments only supplies tire brand, and _build_tire_lookup checks for the file,
+        so losing it costs one column rather than the whole report.
+        """
+        from hpde_analytics_cli.api.client import APIError
+
+        mock_client.get_event_assignments.side_effect = APIError("no assignments")
+        exporter = DataExporter(output_dir=temp_dir)
+
+        exported_files = exporter.export_all_data(mock_client, "event-123")
+
+        with open(exported_files["summary"], "r") as f:
+            summary = json.load(f)
+
+        assert summary["missing_required_endpoints"] == []
+        assert "raw_assignments" in summary["failed_endpoints"]
+
+    def test_successful_export_records_no_failures(self, temp_dir, mock_client):
+        """The happy path reports an empty failure set, not a missing key."""
+        exporter = DataExporter(output_dir=temp_dir)
+
+        exported_files = exporter.export_all_data(mock_client, "event-123")
+
+        with open(exported_files["summary"], "r") as f:
+            summary = json.load(f)
+
+        assert summary["failed_endpoints"] == {}
+        assert summary["missing_required_endpoints"] == []
+        assert exporter.failures == {}
+
+    def test_endpoint_errors_print_without_verbose(self, temp_dir, mock_client, capsys):
+        """An endpoint that did not export is not a progress message."""
+        from hpde_analytics_cli.api.client import APIError
+
+        mock_client.get_event_assignments.side_effect = APIError("no assignments")
+        exporter = DataExporter(output_dir=temp_dir)
+
+        exporter.export_all_data(mock_client, "event-123", verbose=False)
+
+        captured = capsys.readouterr()
+        assert "[ERROR] raw_assignments: no assignments" in captured.out
