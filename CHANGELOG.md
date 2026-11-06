@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.0.10](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.9...v6.0.10) (2026-11-06)
+
+
+### Bug Fixes
+
+* build the OAuth handler only for commands that reach the network ([9d23ef9](https://github.com/Homan13/hpde-analytics-cli/commit/9d23ef998fec171986af0fe64fbdc133e6cfe9c6)), closes [#57](https://github.com/Homan13/hpde-analytics-cli/issues/57)
+* fail the export when data the report requires is missing ([b4a3ea7](https://github.com/Homan13/hpde-analytics-cli/commit/b4a3ea7b483f2857d7b1c06d3494e5009bec93f2)), closes [#59](https://github.com/Homan13/hpde-analytics-cli/issues/59)
+
 ## [6.0.9](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.8...v6.0.9) (2026-11-06)
 
 
