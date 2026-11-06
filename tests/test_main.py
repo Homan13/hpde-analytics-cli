@@ -11,7 +11,9 @@ from hpde_analytics_cli import paths
 from hpde_analytics_cli.main import (
     create_parser,
     handle_credential_commands,
+    handle_populate_emails,
     load_environment,
+    main,
 )
 
 
@@ -389,3 +391,138 @@ class TestCLIIntegration:
         # Access description
         assert "HPDE Analytics" in parser.description
         assert "MotorsportsReg" in parser.description
+
+
+class TestDispatchCredentialRequirements:
+    """
+    Which commands are allowed to require MSR credentials.
+
+    ``main`` used to build the OAuth handler ahead of the whole dispatch chain, so
+    ``--report`` — pure local file processing — exited 1 with "No credentials found" on
+    any machine without credentials. These pin the handler to the branches that actually
+    reach the network.
+    """
+
+    HANDLERS = (
+        "handle_auth",
+        "handle_discover",
+        "handle_report",
+        "handle_export",
+        "handle_populate_emails",
+        "handle_full_flow",
+    )
+
+    def _stubs(self, **overrides):
+        stubs = {name: MagicMock() for name in self.HANDLERS}
+        stubs["load_environment"] = MagicMock()
+        stubs["handle_credential_commands"] = MagicMock()
+        stubs["create_oauth_from_env"] = MagicMock()
+        stubs.update(overrides)
+        return stubs
+
+    def _dispatch(self, argv, **overrides):
+        """Run main() with argv, every handler stubbed. Returns the stub dict."""
+        stubs = self._stubs(**overrides)
+
+        with patch.object(sys, "argv", ["hpde-analytics-cli"] + argv):
+            with patch.multiple("hpde_analytics_cli.main", **stubs):
+                main()
+
+        return stubs
+
+    @pytest.mark.parametrize(
+        "argv,handler",
+        [
+            (["--report", "--export-dir", "x"], "handle_report"),
+            (["--populate-emails", "--export-dir", "x", "--sheet-id", "s"], None),
+        ],
+    )
+    def test_local_only_commands_do_not_build_oauth(self, argv, handler):
+        """--report and --populate-emails dispatch without resolving credentials."""
+        mocks = self._dispatch(argv)
+
+        mocks["create_oauth_from_env"].assert_not_called()
+        if handler:
+            mocks[handler].assert_called_once()
+
+    @pytest.mark.parametrize(
+        "flag,handler",
+        [
+            ("--auth", "handle_auth"),
+            ("--discover", "handle_discover"),
+            ("--export", "handle_export"),
+        ],
+    )
+    def test_network_commands_build_oauth(self, flag, handler):
+        """Commands that reach the API still resolve credentials up front."""
+        mocks = self._dispatch([flag])
+
+        mocks["create_oauth_from_env"].assert_called_once()
+        mocks[handler].assert_called_once()
+
+    def test_bare_invocation_builds_oauth(self):
+        """The full flow still resolves credentials."""
+        mocks = self._dispatch([])
+
+        mocks["create_oauth_from_env"].assert_called_once()
+        mocks["handle_full_flow"].assert_called_once()
+
+    def test_report_works_when_credentials_are_unavailable(self):
+        """
+        The regression itself: --report must run even when credential resolution would
+        raise, which is what happens on a machine that has never been configured.
+        """
+        stubs = self._dispatch(
+            ["--report", "--export-dir", "x"],
+            create_oauth_from_env=MagicMock(side_effect=ValueError("No credentials found")),
+        )
+
+        stubs["handle_report"].assert_called_once()
+
+
+class TestPopulateEmailsLazyOAuth:
+    """``handle_populate_emails`` resolves credentials only on its --event-id path."""
+
+    def _args(self, **overrides):
+        base = dict(
+            sheet_id="sheet",
+            service_account_key="/tmp/key.json",
+            export_dir=None,
+            event_id=None,
+            org_id=None,
+            worksheet=None,
+            name_column="Name",
+            email_column="D",
+            group_filter="novice hpde",
+            dry_run=True,
+            verbose=False,
+        )
+        base.update(overrides)
+        return MagicMock(**base)
+
+    @patch("hpde_analytics_cli.main.NameMatcher")
+    @patch("hpde_analytics_cli.main.EmailPopulator")
+    @patch("hpde_analytics_cli.main.create_oauth_from_env")
+    def test_export_dir_path_does_not_build_oauth(self, mock_oauth, mock_pop, mock_matcher):
+        """Reading local CSVs must not require MSR credentials."""
+        mock_pop.return_value.load_msr_data_from_export.return_value = ([], [])
+        mock_matcher.build_email_lookup.return_value = {"a b": "a@b.com"}
+
+        handle_populate_emails(self._args(export_dir="some/dir"))
+
+        mock_oauth.assert_not_called()
+        mock_pop.return_value.load_msr_data_from_export.assert_called_once_with("some/dir")
+
+    @patch("hpde_analytics_cli.main.create_client_from_oauth")
+    @patch("hpde_analytics_cli.main.NameMatcher")
+    @patch("hpde_analytics_cli.main.EmailPopulator")
+    @patch("hpde_analytics_cli.main.create_oauth_from_env")
+    def test_event_id_path_builds_oauth(self, mock_oauth, mock_pop, mock_matcher, mock_client):
+        """The API path still resolves credentials."""
+        mock_oauth.return_value.has_valid_tokens.return_value = True
+        mock_pop.return_value.load_msr_data_from_api.return_value = ([], [])
+        mock_matcher.build_email_lookup.return_value = {"a b": "a@b.com"}
+
+        handle_populate_emails(self._args(event_id="123"))
+
+        mock_oauth.assert_called_once()

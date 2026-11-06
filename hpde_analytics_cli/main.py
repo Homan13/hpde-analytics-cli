@@ -189,8 +189,13 @@ def handle_export(oauth, args) -> None:
         print(f"  - {file_name}: {path}")
 
 
-def handle_populate_emails(oauth, args) -> None:
-    """Handle the --populate-emails command."""
+def handle_populate_emails(args) -> None:
+    """
+    Handle the --populate-emails command.
+
+    Takes no OAuth handler: the --export-dir path reads local CSVs only, so credentials
+    are resolved lazily on the --event-id path, which is the only one that calls the API.
+    """
     print("\n" + "=" * 60)
     print("Populating Student Emails")
     print("=" * 60)
@@ -216,6 +221,7 @@ def handle_populate_emails(oauth, args) -> None:
         entrylist, attendees = populator.load_msr_data_from_export(args.export_dir)
     elif args.event_id:
         print("\n  Fetching data from MSR API...")
+        oauth = create_oauth_from_env()
         if not oauth.has_valid_tokens():
             print(ERR_NO_VALID_TOKENS)
             sys.exit(1)
@@ -468,20 +474,21 @@ def main():
     handle_credential_commands(args)
 
     try:
-        oauth = create_oauth_from_env()
-
+        # Build the OAuth handler only in the branches that reach the network.
+        # --report is pure local file processing, and --populate-emails is too on its
+        # --export-dir path, so neither may require MSR credentials to exist.
         if args.auth:
-            handle_auth(oauth, args)
+            handle_auth(create_oauth_from_env(), args)
         elif args.discover:
-            handle_discover(oauth, args)
+            handle_discover(create_oauth_from_env(), args)
         elif args.report:
             handle_report(args)
         elif args.export:
-            handle_export(oauth, args)
+            handle_export(create_oauth_from_env(), args)
         elif args.populate_emails:
-            handle_populate_emails(oauth, args)
+            handle_populate_emails(args)
         else:
-            handle_full_flow(oauth, args)
+            handle_full_flow(create_oauth_from_env(), args)
 
         print("\nDone!")
 
