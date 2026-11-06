@@ -211,3 +211,20 @@ PyPI artifact.
 Publishing to PyPI uses trusted publishing and fires on GitHub release `published`.
 `release-please-config.json` sets `bump-minor-pre-major` and `bump-patch-for-minor-pre-major`,
 both of which are **inert** above 1.0.0 and have no effect on this project.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on `Homan13/hpde-analytics-cli`, via the `gh` CLI.
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, each label string equal to its name.
+See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root, both created lazily.
+See `docs/agents/domain.md`.
