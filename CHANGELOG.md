@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.9](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.8...v6.0.9) (2026-11-06)
+
+
+### Documentation
+
+* configure agent skills for GitHub issues and triage labels ([481fb28](https://github.com/Homan13/hpde-analytics-cli/commit/481fb28c5ecd34bfddfe2fbc8dda369aa9e4db23))
+
 ## [6.0.8](https://github.com/Homan13/hpde-analytics-cli/compare/v6.0.7...v6.0.8) (2026-10-07)
 
 
